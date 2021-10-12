@@ -14,9 +14,31 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package models
+package v1
 
-type Version struct {
-	Build   string `json:"build"`
-	Version string `json:"version"`
+import (
+	"github.com/gin-gonic/gin"
+	"github.com/mixanemca/pdns-api/internal/service"
+)
+
+type Handler struct {
+	// pdnshttpService service.Pdnshttp
+	services *pdns.Service
+}
+
+// pdnshttpService arg
+func NewHandler(services *pdns.Service) *Handler {
+	return &Handler{services: services}
+}
+
+func (h *Handler) Init() (api *gin.Engine) {
+	/*
+		v1 := api.Group("/v1")
+		{
+			// h.initRouter(v1)
+		}
+	*/
+	router := gin.New()
+
+	return router
 }

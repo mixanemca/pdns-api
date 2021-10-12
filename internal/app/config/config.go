@@ -23,6 +23,7 @@ import (
 type Config struct {
 	HTTP     HTTPConfig `mapstructure:"http"`
 	PDNSHTTP PDNSHTTPConfig
+	Log      LogConfig
 }
 
 type HTTPConfig struct {
@@ -38,6 +39,11 @@ type HTTPTimeoutConfig struct {
 
 type PDNSHTTPConfig struct {
 	Key string `mapstructure:"pdnshhtp.key"`
+}
+
+type LogConfig struct {
+	LogLevel string `mapstructure:"log-level"`
+	LogFile  string `mapstructure:"log-file"`
 }
 
 func Init(configPath string) (*Config, error) {
