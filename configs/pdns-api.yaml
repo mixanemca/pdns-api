@@ -1,7 +1,42 @@
 ---
+# Set the role for dpns-api daemon (api or worker)
+role: 'api'
+# X-API-Key HTTP header for access to PowerDNS Authoritative API
+api-key: 'pdns'
+# Datacenter name
+datacenter: 'dataspace'
+# Environment name, like a 'dev' or 'prod'
+environment: 'dev'
+# Path to logging file
+log-file: '/var/log/pdns-api/pdns-api.log'
+# Set logging severity
+log-level: 'info'
+
+# HTTP exposes public api
 http:
-  address: "127.0.0.1"
-  port: "8080"
-  timeout:
-    read: 5
-    write: 5
+  # The address for listening
+  listen-address: '0.0.0.0'
+  # The port for listening
+  listen-port: 8080
+# The address and port for listening internal API
+internal:
+  # The address for listening internal API
+  listen-address: '0.0.0.0'
+  # The port for listening internal API
+  listen-port: 8090
+
+# LDAP setting
+ldap:
+  # Enable LDAP authorization
+  enabled: false
+  # URL for connection to LDAP
+  url: 'ldap://ldap.localhost:389'
+  # Username for LDAP bind
+  user: ''
+  # Password for LDAP bind
+  password: ''
+  # LDAP Base DN for bind
+  base-dn: ''
+  # Base DN for LDAP searching
+  search-base: ''
+  search-filter: ''
