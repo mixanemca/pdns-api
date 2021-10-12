@@ -16,10 +16,38 @@ limitations under the License.
 
 package main
 
-import "github.com/mixanemca/pdns-api/internal/app"
+import (
+	"github.com/mixanemca/pdns-api/internal/app"
+	"github.com/mixanemca/pdns-api/internal/app/config"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
+	logger2 "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
+	"github.com/sirupsen/logrus"
+	"log"
+)
 
 const configPath = "config/pdns-api"
 
 func main() {
-	app.Run(configPath)
+	log.Println("read config")
+	cfg, err := config.Init(configPath)
+	if err != nil {
+		logrus.Fatalf("error occurred while reading config: %s\n", err.Error())
+	}
+
+	if cfg == nil {
+		logrus.Errorf("config is empty")
+		return
+	}
+
+	logger := logger2.NewLogger(cfg.Log.LogFile, cfg.Log.LogLevel)
+	consulClient, err := consul.NewConsulClient()
+	if err != nil {
+		logger.WithFields(logrus.Fields{
+			"action": logger2.ActionSystem,
+		}).Fatalf("Cannot create a Consul API client: %v", err)
+	}
+
+	pdnsApp := app.NewApp(*cfg, consulClient)
+
+	pdnsApp.Run()
 }

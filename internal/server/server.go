@@ -17,10 +17,10 @@ limitations under the License.
 package server
 
 import (
+	"github.com/mixanemca/pdns-api/internal/app/config"
 	"net"
 	"net/http"
 
-	"github.com/mixanemca/pdns-api/internal/config"
 	"golang.org/x/net/context"
 )
 

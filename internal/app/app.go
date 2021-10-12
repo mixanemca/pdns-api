@@ -17,28 +17,25 @@ limitations under the License.
 package app
 
 import (
-	"log"
+	"github.com/hashicorp/consul/api"
+	"github.com/mixanemca/pdns-api/internal/app/config"
+	"github.com/sirupsen/logrus"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/mixanemca/pdns-api/internal/config"
-	"github.com/sirupsen/logrus"
 )
 
-var (
-	version string = "unknown"
-	build   string = "unknown"
-)
+type app struct {
+	cfg    config.Config
+	consul *api.Client
+}
 
-func Run(configPath string) {
-	log.Println("read config")
-	cfg, err := config.Init(configPath)
-	if err != nil {
-		// logger.Error(err)
-		logrus.Fatalf("error occurred while reading config: %s\n", err.Error())
-		return
-	}
+func NewApp(cfg config.Config, consul *api.Client) *app {
+	return &app{cfg: cfg, consul: consul}
+}
+
+//The entry point of pdns-api
+func (a *app) Run() {
 
 	// pdnshttpClient := pdnshttp.NewClient(cfg.PDNSHTTP.Key)
 
@@ -56,7 +53,7 @@ func Run(configPath string) {
 		}()
 	*/
 
-	logrus.Infof("Server started and listen on %s:%s", cfg.HTTP.Address, cfg.HTTP.Port)
+	logrus.Infof("Server started and listen on %s:%s", a.cfg.HTTP.Address, a.cfg.HTTP.Port)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
