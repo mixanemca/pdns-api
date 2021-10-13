@@ -25,6 +25,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/mixanemca/pdns-api/internal/app/config"
+	v1 "github.com/mixanemca/pdns-api/internal/app/handler/v1"
 	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
 	"github.com/sirupsen/logrus"
 )
@@ -59,6 +60,8 @@ func (a *app) Run() {
 
 	// handlers := httpv1.NewHandler(services.PDNSHTTP)
 
+	// HTTP Handlers
+	a.publicRouter.HandleFunc("/api/v1/health", v1.Health).Methods(http.MethodGet)
 	// HTTP Server
 	publicAddr := net.JoinHostPort(a.cfg.PublicHTTP.Address, a.cfg.PublicHTTP.Port)
 
