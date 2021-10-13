@@ -19,7 +19,6 @@ package main
 import (
 	"github.com/mixanemca/pdns-api/internal/app"
 	"github.com/mixanemca/pdns-api/internal/app/config"
-	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
 	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
 	"github.com/sirupsen/logrus"
 )
@@ -38,14 +37,17 @@ func main() {
 	}
 
 	logger := log.NewLogger(cfg.Log.File, cfg.Log.Level)
-	consulClient, err := consul.NewConsulClient()
-	if err != nil {
-		logger.WithFields(logrus.Fields{
-			"action": log.ActionSystem,
-		}).Fatalf("Cannot create a Consul API client: %v", err)
-	}
+	/*
+		consulClient, err := consul.NewConsulClient()
+		if err != nil {
+			logger.WithFields(logrus.Fields{
+				"action": log.ActionSystem,
+			}).Fatalf("Cannot create a Consul API client: %v", err)
+		}
+	*/
 
-	pdnsApp := app.NewApp(*cfg, consulClient)
+	// pdnsApp := app.NewApp(*cfg, consulClient)
+	pdnsApp := app.NewApp(*cfg, logger)
 
 	pdnsApp.Run()
 }

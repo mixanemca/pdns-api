@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,21 +17,37 @@ limitations under the License.
 package app
 
 import (
-	"github.com/hashicorp/consul/api"
-	"github.com/mixanemca/pdns-api/internal/app/config"
-	"github.com/sirupsen/logrus"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/gorilla/mux"
+	"github.com/mixanemca/pdns-api/internal/app/config"
+	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
+	"github.com/sirupsen/logrus"
 )
 
 type app struct {
-	cfg    config.Config
-	consul *api.Client
+	cfg config.Config
+	// consul         *api.Client
+	logger         *logrus.Logger
+	internalRouter *mux.Router
+	publicRouter   *mux.Router
 }
 
-func NewApp(cfg config.Config, consul *api.Client) *app {
-	return &app{cfg: cfg, consul: consul}
+func NewApp(cfg config.Config, logger *logrus.Logger) *app {
+	publicRouter := mux.NewRouter()
+	internalRouter := mux.NewRouter()
+
+	return &app{
+		cfg: cfg,
+		// consul:         consul,
+		logger:         logger,
+		internalRouter: internalRouter,
+		publicRouter:   publicRouter,
+	}
 }
 
 //The entry point of pdns-api
@@ -43,22 +59,27 @@ func (a *app) Run() {
 
 	// handlers := httpv1.NewHandler(services.PDNSHTTP)
 
-	/*
-		// HTTP Server
-		srv := server.NewServer(cfg, handlers.Init())
-		go func() {
-			if err := srv.Run(); err != nil {
-				logrus.Errorf("error occurred while running http server: %s\n", err.Error())
-			}
-		}()
-	*/
+	// HTTP Server
+	publicAddr := net.JoinHostPort(a.cfg.PublicHTTP.Address, a.cfg.PublicHTTP.Port)
 
-	logrus.Infof("Server started and listen on %s:%s", a.cfg.HTTP.Address, a.cfg.HTTP.Port)
+	publicHTTPServer := &http.Server{
+		Addr:    publicAddr,
+		Handler: a.publicRouter,
+	}
+	go func() {
+		if err := publicHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			a.logger.WithFields(logrus.Fields{
+				"action": log.ActionSystem,
+			}).Fatalf("error occurred while running http server: %s\n", err.Error())
+		}
+	}()
+
+	a.logger.Infof("Server started and listen on %s", net.JoinHostPort(a.cfg.PublicHTTP.Address, a.cfg.PublicHTTP.Port))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
 	<-quit
 
-	logrus.Info("Server stopped")
+	a.logger.Info("Server stopped")
 }

@@ -25,24 +25,19 @@ type Config struct {
 	ApiKey      string     `mapstructure:"api-key"`
 	DataCenter  string     `mapstructure:"datacenter"`
 	Environment string     `mapstructure:"environment"`
-	HTTP        HTTPConfig `mapstructure:"http"`
-	PDNSHTTP    PDNSHTTPConfig
-	Log         LogConfig `mapstructure:"log"`
+	PublicHTTP  HTTPConfig `mapstructure:"public-http"`
+	Log         LogConfig  `mapstructure:"log"`
 }
 
 type HTTPConfig struct {
-	Address string `mapstructure:"address"`
-	Port    string `mapstructure:"port"`
-	Timeout HTTPTimeoutConfig
+	Address string            `mapstructure:"listen-address"`
+	Port    string            `mapstructure:"listen-port"`
+	Timeout HTTPTimeoutConfig `mapstructure:"timeout"`
 }
 
 type HTTPTimeoutConfig struct {
-	Read  int
-	Write int
-}
-
-type PDNSHTTPConfig struct {
-	Key string `mapstructure:"pdnshttp.key"`
+	Read  int `mapstructure:"read"`
+	Write int `mapstructure:"write"`
 }
 
 type LogConfig struct {

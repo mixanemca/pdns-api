@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,9 +17,10 @@ limitations under the License.
 package server
 
 import (
-	"github.com/mixanemca/pdns-api/internal/app/config"
 	"net"
 	"net/http"
+
+	"github.com/mixanemca/pdns-api/internal/app/config"
 
 	"golang.org/x/net/context"
 )
@@ -31,7 +32,7 @@ type Server struct {
 func NewServer(cfg *config.Config, handler http.Handler) *Server {
 	return &Server{
 		httpServer: &http.Server{
-			Addr:    net.JoinHostPort(cfg.HTTP.Address, cfg.HTTP.Port),
+			Addr:    net.JoinHostPort(cfg.PublicHTTP.Address, cfg.PublicHTTP.Port),
 			Handler: handler,
 			// ReadTimeout:  cfg.HTTP.ReadTimeout,
 			// WriteTimeout: cfg.HTTP.WriteTimeout,
