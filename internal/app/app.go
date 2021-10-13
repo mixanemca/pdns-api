@@ -59,9 +59,10 @@ func (a *app) Run() {
 	// services := service.NewServices(pdnshttpClient)
 
 	// handlers := httpv1.NewHandler(services.PDNSHTTP)
+	healthHandler := v1.NewHealthHandler(a.cfg)
 
 	// HTTP Handlers
-	a.publicRouter.HandleFunc("/api/v1/health", v1.Health).Methods(http.MethodGet)
+	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
 	// HTTP Server
 	publicAddr := net.JoinHostPort(a.cfg.PublicHTTP.Address, a.cfg.PublicHTTP.Port)
 

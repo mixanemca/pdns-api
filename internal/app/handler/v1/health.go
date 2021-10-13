@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/mixanemca/pdns-api/internal/app/config"
 	"github.com/mixanemca/pdns-api/internal/infrastructure"
 )
 
@@ -28,8 +29,16 @@ type alive struct {
 	Hostname string `json:"hostname"`
 }
 
+type HealthHandler struct {
+	config config.Config
+}
+
+func NewHealthHandler(c config.Config) *HealthHandler {
+	return &HealthHandler{config: c}
+}
+
 // Health return json with alive status
-func Health(w http.ResponseWriter, r *http.Request) {
+func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	// timer := getLabeledResponseTimePeersHistogramTimer(s.Config.Environment, s.Hostname, r.URL.Path, r.Method)
 	// defer timer.ObserveDuration()
 
@@ -43,7 +52,7 @@ func Health(w http.ResponseWriter, r *http.Request) {
 	err := json.NewEncoder(w).Encode(a)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		// countError(s.Config.Environment, s.Hostname, r.URL.Path, http.StatusInternalServerError)
+		// countError(h.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 	}
-	// countCall(s.Config.Environment, s.Hostname, r.URL.Path, r.Method, http.StatusOK)
+	// countCall(h.config.Environment, infrastucture.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
 }
