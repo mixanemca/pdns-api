@@ -20,15 +20,13 @@ import (
 	"github.com/mixanemca/pdns-api/internal/app"
 	"github.com/mixanemca/pdns-api/internal/app/config"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
-	logger2 "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
+	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
 	"github.com/sirupsen/logrus"
-	"log"
 )
 
-const configPath = "config/pdns-api"
+const configPath = "configs/pdns-api"
 
 func main() {
-	log.Println("read config")
 	cfg, err := config.Init(configPath)
 	if err != nil {
 		logrus.Fatalf("error occurred while reading config: %s\n", err.Error())
@@ -39,11 +37,11 @@ func main() {
 		return
 	}
 
-	logger := logger2.NewLogger(cfg.Log.LogFile, cfg.Log.LogLevel)
+	logger := log.NewLogger(cfg.Log.File, cfg.Log.Level)
 	consulClient, err := consul.NewConsulClient()
 	if err != nil {
 		logger.WithFields(logrus.Fields{
-			"action": logger2.ActionSystem,
+			"action": log.ActionSystem,
 		}).Fatalf("Cannot create a Consul API client: %v", err)
 	}
 

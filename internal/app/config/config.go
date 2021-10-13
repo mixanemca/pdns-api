@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,9 +21,13 @@ import (
 )
 
 type Config struct {
-	HTTP     HTTPConfig `mapstructure:"http"`
-	PDNSHTTP PDNSHTTPConfig
-	Log      LogConfig
+	Role        string     `mapstructure:"role"`
+	ApiKey      string     `mapstructure:"api-key"`
+	DataCenter  string     `mapstructure:"datacenter"`
+	Environment string     `mapstructure:"environment"`
+	HTTP        HTTPConfig `mapstructure:"http"`
+	PDNSHTTP    PDNSHTTPConfig
+	Log         LogConfig `mapstructure:"log"`
 }
 
 type HTTPConfig struct {
@@ -38,12 +42,12 @@ type HTTPTimeoutConfig struct {
 }
 
 type PDNSHTTPConfig struct {
-	Key string `mapstructure:"pdnshhtp.key"`
+	Key string `mapstructure:"pdnshttp.key"`
 }
 
 type LogConfig struct {
-	LogLevel string `mapstructure:"log-level"`
-	LogFile  string `mapstructure:"log-file"`
+	Level string `mapstructure:"level"`
+	File  string `mapstructure:"file"`
 }
 
 func Init(configPath string) (*Config, error) {

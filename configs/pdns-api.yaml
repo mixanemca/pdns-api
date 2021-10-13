@@ -7,10 +7,12 @@ api-key: 'pdns'
 datacenter: 'dataspace'
 # Environment name, like a 'dev' or 'prod'
 environment: 'dev'
-# Path to logging file
-log-file: '/var/log/pdns-api/pdns-api.log'
-# Set logging severity
-log-level: 'info'
+# Logging
+log:
+  # Path to logging file
+  file: '/var/log/pdns-api/pdns-api.log'
+  # Set logging severity
+  level: 'info'
 
 # HTTP exposes public api
 http:
