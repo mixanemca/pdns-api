@@ -21,14 +21,13 @@ import (
 )
 
 type Config struct {
-	Role           string       `mapstructure:"role"`
-	DataCenter     string       `mapstructure:"datacenter"`
-	Environment    string       `mapstructure:"environment"`
-	PublicHTTP     HTTPConfig   `mapstructure:"public-http"`
-	Log            LogConfig    `mapstructure:"log"`
-	BackendTimeout int64        `mapstructure:"backend-timeout"`
-	PDNS           PDNSConfig   `mapstructure:"pdns"`
-	Consul         ConsulConfig `mapstructure:"consul"`
+	Role        string       `mapstructure:"role"`
+	DataCenter  string       `mapstructure:"datacenter"`
+	Environment string       `mapstructure:"environment"`
+	PublicHTTP  HTTPConfig   `mapstructure:"public-http"`
+	Log         LogConfig    `mapstructure:"log"`
+	PDNS        PDNSConfig   `mapstructure:"pdns"`
+	Consul      ConsulConfig `mapstructure:"consul"`
 }
 
 type HTTPConfig struct {
@@ -48,8 +47,9 @@ type LogConfig struct {
 }
 
 type PDNSConfig struct {
-	BaseURL string `mastructure:"base-url"`
+	BaseURL string `mapstructure:"base-url"`
 	ApiKey  string `mapstructure:"api-key"`
+	Timeout int    `mapstructure:"timeout"`
 }
 
 type ConsulConfig struct {
@@ -61,6 +61,14 @@ func Init() (*Config, error) {
 	viper.AddConfigPath("/etc/pdns-api")
 	viper.SetConfigName("pdns-api")
 	viper.SetConfigType("yaml")
+
+	// Set configuration defaults
+	viper.SetDefault("datacenter", "dataspace")
+	viper.SetDefault("environment", "dev")
+	viper.SetDefault("public-http.listen-address", "127.0.0.1")
+	viper.SetDefault("public-http.listen-port", 8080)
+	viper.SetDefault("pdns.base-url", "http://127.0.0.1:8081")
+	viper.SetDefault("pdns.timeout", 10)
 
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, err

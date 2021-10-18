@@ -48,7 +48,7 @@ func (s *ListServersHandler) ListServer(w http.ResponseWriter, r *http.Request) 
 	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(s.config.BackendTimeout)*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(s.config.PDNS.Timeout)*time.Second)
 	defer cancel()
 
 	server, err := s.powerDNSClient.Servers().GetServer(ctx, serverID)

@@ -56,7 +56,7 @@ func (s *ZonesHandler) ListZones(w http.ResponseWriter, r *http.Request) {
 	var zones []zones.Zone
 	var err error
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(s.config.BackendTimeout)*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(s.config.PDNS.Timeout)*time.Second)
 	defer cancel()
 
 	// Get zone by name from query parameters

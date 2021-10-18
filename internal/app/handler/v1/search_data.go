@@ -83,7 +83,7 @@ func (s *ListServersHandler) SearchData(w http.ResponseWriter, r *http.Request) 
 		ot = search.ObjectTypeAll
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.BackendTimeout)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.PDNS.Timeout)*time.Second)
 	defer cancel()
 
 	result, err := s.powerDNSClient.Search().Search(ctx, serverID, query, m, ot)
