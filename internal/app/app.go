@@ -82,6 +82,7 @@ func (a *app) Run() {
 	listServerHandler := v1.NewListServerHandler(a.cfg, stats, powerDNSClient)
 	searchDataHandler := v1.NewListServerHandler(a.cfg, stats, powerDNSClient)
 	forwardZonesHandler := v1.NewForwardZonesHandler(a.cfg, stats, powerDNSClient)
+	zonesHandler := v1.NewZonesHandler(a.cfg, stats, powerDNSClient)
 
 	// HTTP Handlers
 	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
@@ -90,6 +91,7 @@ func (a *app) Run() {
 	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/search-data", searchDataHandler.SearchData).Methods(http.MethodGet)
 	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/forward-zones", forwardZonesHandler.ListForwardZones).Methods(http.MethodGet)
 	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/forward-zones/{zoneID}", forwardZonesHandler.ListForwardZone).Methods(http.MethodGet)
+	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/zones", zonesHandler.ListZones).Methods(http.MethodGet)
 
 	// HTTP Server
 	publicAddr := net.JoinHostPort(a.cfg.PublicHTTP.Address, a.cfg.PublicHTTP.Port)
