@@ -28,6 +28,8 @@ type Config struct {
 	Log         LogConfig    `mapstructure:"log"`
 	PDNS        PDNSConfig   `mapstructure:"pdns"`
 	Consul      ConsulConfig `mapstructure:"consul"`
+	Version     string
+	Build       string
 }
 
 type HTTPConfig struct {
@@ -56,7 +58,7 @@ type ConsulConfig struct {
 	Address string `mastructure:"address"`
 }
 
-func Init() (*Config, error) {
+func Init(version, build string) (*Config, error) {
 	viper.AddConfigPath("configs")
 	viper.AddConfigPath("/etc/pdns-api")
 	viper.SetConfigName("pdns-api")
@@ -80,6 +82,9 @@ func Init() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	cfg.Version = version
+	cfg.Build = build
 
 	return &cfg, nil
 }

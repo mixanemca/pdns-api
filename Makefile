@@ -8,7 +8,7 @@ GITHUB := github.com/mixanemca
 MAKEFLAGS += --silent
 
 # Use linker flags to provide version/build settings
-LDFLAGS=-ldflags "-s -w -X=$(GITHUB)/$(PROJECTNAME)/app.version=$(VERSION) -X=$(GITHUB)/$(PROJECTNAME)/app.build=$(BUILD)"
+LDFLAGS=-ldflags "-s -w -X=main.version=$(VERSION) -X=main.build=$(BUILD)"
 
 .PHONY: build run test clean help
 
@@ -17,7 +17,7 @@ all: build
 ## build: Compile the binary.
 build: clean
 	@mkdir -p bin
-	@go build -o bin/$(PROJECTNAME) cmd/$(PROJECTNAME)/main.go
+	@go build $(LDFLAGS) -o bin/$(PROJECTNAME) cmd/$(PROJECTNAME)/main.go
 
 ## run: Run the go run command.
 run: test

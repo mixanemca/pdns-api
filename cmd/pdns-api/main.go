@@ -23,8 +23,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var (
+	version string = "unknown"
+	build   string = "unknown"
+)
+
 func main() {
-	cfg, err := config.Init()
+	cfg, err := config.Init(version, build)
 	if err != nil {
 		logrus.Fatalf("error occurred while reading config: %s\n", err.Error())
 	}
@@ -36,7 +41,6 @@ func main() {
 
 	logger := log.NewLogger(cfg.Log.File, cfg.Log.Level)
 
-	// pdnsApp := app.NewApp(*cfg, consulClient)
 	pdnsApp := app.NewApp(*cfg, logger)
 
 	pdnsApp.Run()

@@ -36,7 +36,7 @@ import (
 )
 
 type app struct {
-	cfg config.Config
+	config config.Config
 	// consul         *api.Client
 	logger         *logrus.Logger
 	internalRouter *mux.Router
@@ -48,7 +48,7 @@ func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 	internalRouter := mux.NewRouter()
 
 	return &app{
-		cfg: cfg,
+		config: cfg,
 		// consul:         consul,
 		logger:         logger,
 		internalRouter: internalRouter,
@@ -59,8 +59,8 @@ func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 //The entry point of pdns-api
 func (a *app) Run() {
 	powerDNSClient, err := pdnsApi.New(
-		pdnsApi.WithBaseURL(a.cfg.PDNS.BaseURL),
-		pdnsApi.WithAPIKeyAuthentication(a.cfg.PDNS.ApiKey),
+		pdnsApi.WithBaseURL(a.config.PDNS.BaseURL),
+		pdnsApi.WithAPIKeyAuthentication(a.config.PDNS.ApiKey),
 	)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
@@ -68,7 +68,7 @@ func (a *app) Run() {
 		}).Fatalf("Cannot create a PowerDNS Authoritative API client: %v", err)
 	}
 
-	_, err = consul.NewConsulClient(a.cfg)
+	_, err = consul.NewConsulClient(a.config)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"action": log.ActionSystem,
@@ -77,12 +77,13 @@ func (a *app) Run() {
 
 	stats := a.initStats()
 
-	healthHandler := v1.NewHealthHandler(a.cfg)
-	listServersHandler := v1.NewListServersHandler(a.cfg, stats, powerDNSClient)
-	listServerHandler := v1.NewListServerHandler(a.cfg, stats, powerDNSClient)
-	searchDataHandler := v1.NewListServerHandler(a.cfg, stats, powerDNSClient)
-	forwardZonesHandler := v1.NewForwardZonesHandler(a.cfg, stats, powerDNSClient)
-	zonesHandler := v1.NewZonesHandler(a.cfg, stats, powerDNSClient)
+	healthHandler := v1.NewHealthHandler(a.config)
+	listServersHandler := v1.NewListServersHandler(a.config, stats, powerDNSClient)
+	listServerHandler := v1.NewListServerHandler(a.config, stats, powerDNSClient)
+	searchDataHandler := v1.NewListServerHandler(a.config, stats, powerDNSClient)
+	forwardZonesHandler := v1.NewForwardZonesHandler(a.config, stats, powerDNSClient)
+	zonesHandler := v1.NewZonesHandler(a.config, stats, powerDNSClient)
+	versionHandler := v1.NewVersionHandler(a.config, stats)
 
 	// HTTP Handlers
 	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
@@ -93,9 +94,10 @@ func (a *app) Run() {
 	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/forward-zones/{zoneID}", forwardZonesHandler.ListForwardZone).Methods(http.MethodGet)
 	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/zones", zonesHandler.ListZones).Methods(http.MethodGet)
 	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/zones/{zoneID}", zonesHandler.ListZone).Methods(http.MethodGet)
+	a.publicRouter.HandleFunc("/api/v1/version", versionHandler.Get).Methods(http.MethodGet)
 
 	// HTTP Server
-	publicAddr := net.JoinHostPort(a.cfg.PublicHTTP.Address, a.cfg.PublicHTTP.Port)
+	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
 
 	publicHTTPServer := &http.Server{
 		Addr:    publicAddr,
@@ -109,7 +111,8 @@ func (a *app) Run() {
 		}
 	}()
 
-	a.logger.Infof("Server started and listen on %s", net.JoinHostPort(a.cfg.PublicHTTP.Address, a.cfg.PublicHTTP.Port))
+	a.logger.Infof("Version: %s; Build: %s", a.config.Version, a.config.Build)
+	a.logger.Infof("Server started and listen on %s", net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
