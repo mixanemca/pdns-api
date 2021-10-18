@@ -16,7 +16,11 @@ limitations under the License.
 
 package infrastructure
 
-import "os"
+import (
+	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
+	"net/http"
+	"os"
+)
 
 func GetHostname() string {
 	h, err := os.Hostname()
@@ -40,4 +44,22 @@ func DeCanonicalize(name string) string {
 		return name[:len(name)-1]
 	}
 	return name
+}
+
+func GetStatusByError(err error) int {
+	var status int
+
+	errorType := errors.GetType(err)
+	switch errorType {
+	case errors.BadRequest:
+		status = http.StatusBadRequest
+	case errors.NotFound:
+		status = http.StatusNotFound
+	case errors.Conflict:
+		status = http.StatusConflict
+	default:
+		status = http.StatusInternalServerError
+	}
+
+	return status
 }

@@ -9,7 +9,7 @@ require (
 	github.com/magefile/mage v1.11.0 // indirect
 	github.com/magiconair/properties v1.8.4 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
-	github.com/mittwald/go-powerdns v0.5.2 // indirect
+	github.com/mittwald/go-powerdns v0.5.2
 	github.com/pelletier/go-toml v1.8.1 // indirect
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/common v0.31.1 // indirect

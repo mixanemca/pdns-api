@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package public
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"net/http"
 	"strconv"
 	"time"
@@ -29,7 +30,6 @@ import (
 	"github.com/mixanemca/pdns-api/internal/app/config"
 	"github.com/mixanemca/pdns-api/internal/infrastructure"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
-	pdns2 "github.com/mixanemca/pdns-api/internal/pdns"
 	"golang.org/x/net/context"
 )
 
@@ -64,7 +64,7 @@ func (s *ListServersHandler) SearchData(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if max = q.Get("max"); max == "" {
-		max = pdns2.DefaultMaxResults
+		max = forwardzone.DefaultMaxResults
 	}
 	if m, err = strconv.Atoi(max); err != nil {
 		http.Error(w, fmt.Sprintf("bad 'max' query parameter: %v", err), http.StatusBadRequest)

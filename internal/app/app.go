@@ -17,6 +17,12 @@ limitations under the License.
 package app
 
 import (
+	"github.com/hashicorp/consul/api"
+	"github.com/mixanemca/pdns-api/internal/app/handler/v1/private"
+	"github.com/mixanemca/pdns-api/internal/app/handler/v1/public"
+	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
+	"github.com/mixanemca/pdns-api/internal/domain/forwardzone/storage"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
 	"net"
 	"net/http"
 	"os"
@@ -31,14 +37,13 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/mixanemca/pdns-api/internal/app/config"
-	v1 "github.com/mixanemca/pdns-api/internal/app/handler/v1"
 	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
 	"github.com/sirupsen/logrus"
 )
 
 type app struct {
 	config config.Config
-	// consul         *api.Client
+	consul         *api.Client
 	logger         *logrus.Logger
 	internalRouter *mux.Router
 	publicRouter   *mux.Router
@@ -50,7 +55,6 @@ func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 
 	return &app{
 		config: cfg,
-		// consul:         consul,
 		logger:         logger,
 		internalRouter: internalRouter,
 		publicRouter:   publicRouter,
@@ -69,7 +73,24 @@ func (a *app) Run() {
 		}).Fatalf("Cannot create a PowerDNS Authoritative API client: %v", err)
 	}
 
+	recursorPowerDNSClient, err := pdnsApi.New(
+		pdnsApi.WithBaseURL("http://127.0.0.1:8082"),
+		pdnsApi.WithAPIKeyAuthentication(a.config.PDNS.ApiKey),
+	)
+	if err != nil {
+		a.logger.WithFields(logrus.Fields{
+			"action": log.ActionSystem,
+		}).Fatalf("Cannot create a PowerDNS Authoritative API client: %v", err)
+	}
+
 	_, err = consul.NewConsulClient(a.config)
+	if err != nil {
+		a.logger.WithFields(logrus.Fields{
+			"action": log.ActionSystem,
+		}).Fatalf("Cannot create a Consul API client: %v", err)
+	}
+
+	a.consul, err = api.NewClient(api.DefaultConfig())
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"action": log.ActionSystem,
@@ -78,15 +99,18 @@ func (a *app) Run() {
 
 	stats := a.initStats()
 
-	healthHandler := v1.NewHealthHandler(a.config)
-	listServersHandler := v1.NewListServersHandler(a.config, stats, powerDNSClient)
-	listServerHandler := v1.NewListServerHandler(a.config, stats, powerDNSClient)
-	searchDataHandler := v1.NewListServerHandler(a.config, stats, powerDNSClient)
-	forwardZonesHandler := v1.NewForwardZonesHandler(a.config, stats, powerDNSClient)
-	zonesHandler := v1.NewZonesHandler(a.config, stats, powerDNSClient)
-	versionHandler := v1.NewVersionHandler(a.config, stats)
+	errorWriter := errors.NewErrorWriter(a.config, a.logger, stats)
+	compositeFszStorage := a.createCompositeStoreage()
 
-	// HTTP Handlers
+	healthHandler := public.NewHealthHandler(a.config)
+	listServersHandler := public.NewListServersHandler(a.config, stats, powerDNSClient)
+	listServerHandler := public.NewListServerHandler(a.config, stats, powerDNSClient)
+	searchDataHandler := public.NewListServerHandler(a.config, stats, powerDNSClient)
+	forwardZonesHandler := public.NewForwardZonesHandler(a.config, stats, powerDNSClient)
+	zonesHandler := public.NewZonesHandler(a.config, stats, powerDNSClient)
+	versionHandler := public.NewVersionHandler(a.config, stats)
+	
+	// HTTP public Handlers
 	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
 	a.publicRouter.HandleFunc("/api/v1/servers", listServersHandler.ListServers).Methods(http.MethodGet)
 	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}", listServerHandler.ListServer).Methods(http.MethodGet)
@@ -99,6 +123,21 @@ func (a *app) Run() {
 
 	// Prometheus metrics
 	a.publicRouter.Handle("/metrics", promhttp.Handler())
+
+	flushHandler := private.NewFlushHandler(a.config, stats, powerDNSClient, recursorPowerDNSClient, a.logger)
+	addFwzHandler := private.NewAddForwardZoneHandler(
+		a.config,
+		stats,
+		powerDNSClient,
+		recursorPowerDNSClient,
+		a.logger,
+		errorWriter,
+		compositeFszStorage,
+	)
+
+	// HTTP internal Handlers
+	a.publicRouter.HandleFunc("/api/v1/internal/{serverID}/cache/flush", flushHandler.FlushInternal).Methods(http.MethodPut)
+	a.publicRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", addFwzHandler.AddForwardZonesInternal).Methods(http.MethodPost)
 
 	// HTTP Server
 	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
@@ -124,6 +163,12 @@ func (a *app) Run() {
 	<-quit
 
 	a.logger.Info("Server stopped")
+}
+
+func (a *app) createCompositeStoreage() storage.Storage {
+	fsStorage := storage.NewFSStorage(forwardzone.ForwardZonesFile)
+	consulStorage := storage.NewConsuleStorage(a.consul)
+	return storage.NewCompositeStorage([]storage.Storage{fsStorage, consulStorage})
 }
 
 func (a *app) initStats() *stats.PrometheusStats {

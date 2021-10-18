@@ -14,11 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package pdns
+package forwardzone
 
 import (
+	"bufio"
 	"fmt"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
+	"io"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/mixanemca/pdns-api/internal/infrastructure"
@@ -60,4 +64,42 @@ func ParseForwardZoneLine(s string) (*ForwardZone, error) {
 	}
 
 	return fz, nil
+}
+
+
+func ParseForwardZoneFile(r io.Reader) (ForwardZones, error) {
+	fzs := make(ForwardZones, 0)
+	scanner := bufio.NewScanner(r)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		s := scanner.Text()
+		fz, err := ParseForwardZoneLine(s)
+		if err != nil {
+			return fzs, err
+		}
+		if fz != nil {
+			fzs = append(fzs, *fz)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return fzs, fmt.Errorf("failed to parse forward-zones-file: %v", err)
+	}
+
+	return fzs, nil
+}
+
+func ForwardZoneIsExist(fzs ForwardZones, searchName string) bool {
+	sort.Sort(fzs)
+	idx := sort.Search(len(fzs), func(i int) bool { return fzs[i].Name == infrastructure.Canonicalize(searchName) })
+	return idx < len(fzs) && fzs[idx].Name == infrastructure.Canonicalize(searchName)
+}
+
+func UpdateForwardZone(fzs ForwardZones, fz ForwardZone) (ForwardZones, error) {
+	for i := range fzs {
+		if fzs[i].Name == infrastructure.Canonicalize(fz.Name) {
+			fzs[i] = fz
+			return fzs, nil
+		}
+	}
+	return fzs, errors.Newf("forward-zone %s not found", fz.Name)
 }
