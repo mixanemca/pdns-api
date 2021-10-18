@@ -27,6 +27,7 @@ import (
 	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/gorilla/mux"
 	"github.com/mixanemca/pdns-api/internal/app/config"
@@ -95,6 +96,9 @@ func (a *app) Run() {
 	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/zones", zonesHandler.ListZones).Methods(http.MethodGet)
 	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/zones/{zoneID}", zonesHandler.ListZone).Methods(http.MethodGet)
 	a.publicRouter.HandleFunc("/api/v1/version", versionHandler.Get).Methods(http.MethodGet)
+
+	// Prometheus metrics
+	a.publicRouter.Handle("/metrics", promhttp.Handler())
 
 	// HTTP Server
 	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
