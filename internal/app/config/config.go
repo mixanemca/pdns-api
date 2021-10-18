@@ -21,12 +21,13 @@ import (
 )
 
 type Config struct {
-	Role        string     `mapstructure:"role"`
-	ApiKey      string     `mapstructure:"api-key"`
-	DataCenter  string     `mapstructure:"datacenter"`
-	Environment string     `mapstructure:"environment"`
-	PublicHTTP  HTTPConfig `mapstructure:"public-http"`
-	Log         LogConfig  `mapstructure:"log"`
+	Role           string     `mapstructure:"role"`
+	ApiKey         string     `mapstructure:"api-key"`
+	DataCenter     string     `mapstructure:"datacenter"`
+	Environment    string     `mapstructure:"environment"`
+	PublicHTTP     HTTPConfig `mapstructure:"public-http"`
+	Log            LogConfig  `mapstructure:"log"`
+	BackendTimeout int64      `mapstructure:"backend-timeout"`
 }
 
 type HTTPConfig struct {

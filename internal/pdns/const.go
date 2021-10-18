@@ -17,7 +17,7 @@ const (
 )
 
 const (
-	defaultMaxResults string = "10"
+	DefaultMaxResults string = "10"
 )
 
 const (

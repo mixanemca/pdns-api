@@ -17,6 +17,9 @@ limitations under the License.
 package app
 
 import (
+	pdns "github.com/mittwald/go-powerdns"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
+	"github.com/prometheus/client_golang/prometheus"
 	"net"
 	"net/http"
 	"os"
@@ -59,10 +62,29 @@ func (a *app) Run() {
 	// services := service.NewServices(pdnshttpClient)
 
 	// handlers := httpv1.NewHandler(services.PDNSHTTP)
+	powerDNSClient, err := pdns.New(
+		pdns.WithBaseURL("http://127.0.0.1:8081"),
+		pdns.WithAPIKeyAuthentication(a.cfg.ApiKey),
+	)
+	if err != nil {
+		a.logger.WithFields(logrus.Fields{
+			"action": log.ActionSystem,
+		}).Fatalf("Cannot create a PowerDNS Authoritative API client: %v", err)
+	}
+
+	stats := a.initStats()
+
 	healthHandler := v1.NewHealthHandler(a.cfg)
+	listServersHandler := v1.NewListServersHandler(a.cfg, stats, powerDNSClient)
+	listServerHandler := v1.NewListServerHandler(a.cfg, stats, powerDNSClient)
+	searchDataHandler := v1.NewListServerHandler(a.cfg, stats, powerDNSClient)
 
 	// HTTP Handlers
 	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
+	a.publicRouter.HandleFunc("/api/v1/servers", listServersHandler.ListServers).Methods(http.MethodGet)
+	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}", listServerHandler.ListServer).Methods(http.MethodGet)
+	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/search-data", searchDataHandler.SearchData).Methods(http.MethodGet)
+
 	// HTTP Server
 	publicAddr := net.JoinHostPort(a.cfg.PublicHTTP.Address, a.cfg.PublicHTTP.Port)
 
@@ -86,4 +108,81 @@ func (a *app) Run() {
 	<-quit
 
 	a.logger.Info("Server stopped")
+}
+
+func (a *app) initStats() *stats.PrometheusStats {
+	// pdns_api_up{dc="dataspace",environment="dev",instance="pdns-dev01:443",job="pdns-api",node="pdns-dev01"}
+	// 1 if the instance is healthy, i.e. reachable, or 0 if the scrape failed
+	pdnsUp := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "pdns_api_up",
+			Help: "Whether the pdns-api server is up",
+		},
+		[]string{
+			"environment",
+			"dc",
+			"node",
+		},
+	)
+
+	// requests counter
+	// pdns_api_total{code="200",node="pdns-dev01",method="GET",uri="/api/v1/health"} 525
+	pdnsCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pdns_api_total",
+			Help: "Statistics of calls endpoints",
+		},
+		[]string{
+			"environment",
+			"node",
+			"path",
+			"method",
+			"code",
+		},
+	)
+
+	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="0.1"} 1
+	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="0.25"} 1
+	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="0.5"} 1
+	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="1"} 1
+	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="2.5"} 1
+	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="5"} 1
+	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="10"} 1
+	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="+Inf"} 1
+	// pdns_api_response_time_s_sum{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s."} 0.000125775
+	// pdns_api_response_time_s_count{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s."} 1
+	pdnsResponseTimeHistogram := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "pdns_api_response_time_s",
+			Help:    "Histogram of response times in seconds",
+			Buckets: []float64{.1, .25, .5, 1, 2.5, 5, 10},
+		},
+		[]string{
+			"environment",
+			"node",
+			"path",
+			"method",
+		},
+	)
+
+	// pdns_api_errors_total{code="400",node="pdns-dev01",path="/api/v1/servers/localhost/cache/flush"} 1
+	pdnsErrorsCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pdns_api_errors_total",
+			Help: "Statistics of errors per instance",
+		},
+		[]string{
+			"environment",
+			"node",
+			"path",
+			"code",
+		},
+	)
+
+	prometheus.MustRegister(pdnsUp)
+	prometheus.MustRegister(pdnsCounter)
+	prometheus.MustRegister(pdnsErrorsCounter)
+	prometheus.MustRegister(pdnsResponseTimeHistogram)
+
+	return stats.NewPrometheusStats(pdnsUp, pdnsCounter, pdnsErrorsCounter, pdnsResponseTimeHistogram)
 }
