@@ -21,13 +21,14 @@ import (
 )
 
 type Config struct {
-	Role           string     `mapstructure:"role"`
-	ApiKey         string     `mapstructure:"api-key"`
-	DataCenter     string     `mapstructure:"datacenter"`
-	Environment    string     `mapstructure:"environment"`
-	PublicHTTP     HTTPConfig `mapstructure:"public-http"`
-	Log            LogConfig  `mapstructure:"log"`
-	BackendTimeout int64      `mapstructure:"backend-timeout"`
+	Role           string       `mapstructure:"role"`
+	DataCenter     string       `mapstructure:"datacenter"`
+	Environment    string       `mapstructure:"environment"`
+	PublicHTTP     HTTPConfig   `mapstructure:"public-http"`
+	Log            LogConfig    `mapstructure:"log"`
+	BackendTimeout int64        `mapstructure:"backend-timeout"`
+	PDNS           PDNSConfig   `mapstructure:"pdns"`
+	Consul         ConsulConfig `mapstructure:"consul"`
 }
 
 type HTTPConfig struct {
@@ -46,8 +47,18 @@ type LogConfig struct {
 	File  string `mapstructure:"file"`
 }
 
-func Init(configPath string) (*Config, error) {
+type PDNSConfig struct {
+	BaseURL string `mastructure:"base-url"`
+	ApiKey  string `mapstructure:"api-key"`
+}
+
+type ConsulConfig struct {
+	Address string `mastructure:"address"`
+}
+
+func Init() (*Config, error) {
 	viper.AddConfigPath("configs")
+	viper.AddConfigPath("/etc/pdns-api")
 	viper.SetConfigName("pdns-api")
 	viper.SetConfigType("yaml")
 

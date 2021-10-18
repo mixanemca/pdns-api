@@ -23,10 +23,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const configPath = "configs/pdns-api"
-
 func main() {
-	cfg, err := config.Init(configPath)
+	cfg, err := config.Init()
 	if err != nil {
 		logrus.Fatalf("error occurred while reading config: %s\n", err.Error())
 	}
@@ -37,14 +35,6 @@ func main() {
 	}
 
 	logger := log.NewLogger(cfg.Log.File, cfg.Log.Level)
-	/*
-		consulClient, err := consul.NewConsulClient()
-		if err != nil {
-			logger.WithFields(logrus.Fields{
-				"action": log.ActionSystem,
-			}).Fatalf("Cannot create a Consul API client: %v", err)
-		}
-	*/
 
 	// pdnsApp := app.NewApp(*cfg, consulClient)
 	pdnsApp := app.NewApp(*cfg, logger)

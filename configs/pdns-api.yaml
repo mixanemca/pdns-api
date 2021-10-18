@@ -1,8 +1,6 @@
 ---
 # Set the role for dpns-api daemon (api or worker)
 role: 'api'
-# X-API-Key HTTP header for access to PowerDNS Authoritative API
-api-key: 'pdns'
 # Datacenter name
 datacenter: 'dataspace'
 # Environment name, like a 'dev' or 'prod'
@@ -32,6 +30,16 @@ internal-http:
   listen-address: '0.0.0.0'
   # The port for listening internal API
   listen-port: '8090'
+
+# The client for PowerDNS API
+pdns:
+  base-url: 'http://127.0.0.1:8081'
+  # X-API-Key HTTP header for access to PowerDNS Authoritative API
+  api-key: 'pdns'
+
+# Consul client
+consul:
+  address: "127.0.0.1:8500"
 
 # LDAP setting
 ldap:

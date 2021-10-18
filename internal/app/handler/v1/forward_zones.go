@@ -17,47 +17,58 @@ limitations under the License.
 package v1
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
+	"os"
 
-	pdns "github.com/mittwald/go-powerdns"
+	"github.com/hashicorp/consul/api"
+	pdnsApi "github.com/mittwald/go-powerdns"
 	"github.com/mixanemca/pdns-api/internal/app/config"
 	"github.com/mixanemca/pdns-api/internal/infrastructure"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
-	"golang.org/x/net/context"
+	"github.com/mixanemca/pdns-api/internal/pdns"
 )
 
-type ListServersHandler struct {
+type ForwardZonesHandler struct {
 	config         config.Config
 	stats          stats.PrometheusStatsCollector
-	powerDNSClient pdns.Client
+	powerDNSClient pdnsApi.Client
+	consulClient   *api.Client
 }
 
-func NewListServersHandler(config config.Config, stats stats.PrometheusStatsCollector, powerDNSClient pdns.Client) *ListServersHandler {
-	return &ListServersHandler{config: config, stats: stats, powerDNSClient: powerDNSClient}
+func NewForwardZonesHandler(config config.Config, stats stats.PrometheusStatsCollector, powerDNSClient pdnsApi.Client) *ForwardZonesHandler {
+	return &ForwardZonesHandler{config: config, stats: stats, powerDNSClient: powerDNSClient}
 }
 
-// ListServers list all servers
-func (s *ListServersHandler) ListServers(w http.ResponseWriter, r *http.Request) {
+func (s *ForwardZonesHandler) ListForwardZones(w http.ResponseWriter, r *http.Request) {
 	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(s.config.BackendTimeout)*time.Second)
-	defer cancel()
-
-	servers, err := s.powerDNSClient.Servers().ListServers(ctx)
+	file, err := os.Open(pdns.ForwardZonesFile)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to get all servers list: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("reading forward-zones-file: %v", err), http.StatusInternalServerError)
 		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json;charset=utf-8")
+	defer file.Close()
+
+	fzs := make(pdns.ForwardZones, 0)
+	scanner := bufio.NewScanner(file)
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		s := scanner.Text()
+		fz, _ := pdns.ParseForwardZoneLine(s)
+		if fz != nil {
+			fzs = append(fzs, *fz)
+		}
+	}
+
 	w.WriteHeader(http.StatusOK)
-	err = json.NewEncoder(w).Encode(servers)
+	err = json.NewEncoder(w).Encode(fzs)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("encoding forward-zones: %v", err), http.StatusInternalServerError)
 		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 		return
 	}

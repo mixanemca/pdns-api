@@ -2,10 +2,13 @@ package consul
 
 import (
 	"github.com/hashicorp/consul/api"
+	"github.com/mixanemca/pdns-api/internal/app/config"
 )
 
-func NewConsulClient() (*api.Client, error) {
-	consul, err := api.NewClient(api.DefaultConfig())
+func NewConsulClient(cfg config.Config) (*api.Client, error) {
+	config := api.DefaultConfig()
+	config.Address = cfg.Consul.Address
+	consul, err := api.NewClient(config)
 	if err != nil {
 		return nil, err
 	}

@@ -17,14 +17,16 @@ limitations under the License.
 package app
 
 import (
-	pdns "github.com/mittwald/go-powerdns"
-	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
-	"github.com/prometheus/client_golang/prometheus"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	pdnsApi "github.com/mittwald/go-powerdns"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gorilla/mux"
 	"github.com/mixanemca/pdns-api/internal/app/config"
@@ -56,20 +58,21 @@ func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 
 //The entry point of pdns-api
 func (a *app) Run() {
-
-	// pdnshttpClient := pdnshttp.NewClient(cfg.PDNSHTTP.Key)
-
-	// services := service.NewServices(pdnshttpClient)
-
-	// handlers := httpv1.NewHandler(services.PDNSHTTP)
-	powerDNSClient, err := pdns.New(
-		pdns.WithBaseURL("http://127.0.0.1:8081"),
-		pdns.WithAPIKeyAuthentication(a.cfg.ApiKey),
+	powerDNSClient, err := pdnsApi.New(
+		pdnsApi.WithBaseURL(a.cfg.PDNS.BaseURL),
+		pdnsApi.WithAPIKeyAuthentication(a.cfg.PDNS.ApiKey),
 	)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"action": log.ActionSystem,
 		}).Fatalf("Cannot create a PowerDNS Authoritative API client: %v", err)
+	}
+
+	_, err = consul.NewConsulClient(a.cfg)
+	if err != nil {
+		a.logger.WithFields(logrus.Fields{
+			"action": log.ActionSystem,
+		}).Fatalf("Cannot create a Consul API client: %v", err)
 	}
 
 	stats := a.initStats()
@@ -78,12 +81,14 @@ func (a *app) Run() {
 	listServersHandler := v1.NewListServersHandler(a.cfg, stats, powerDNSClient)
 	listServerHandler := v1.NewListServerHandler(a.cfg, stats, powerDNSClient)
 	searchDataHandler := v1.NewListServerHandler(a.cfg, stats, powerDNSClient)
+	forwardZonesHandler := v1.NewForwardZonesHandler(a.cfg, stats, powerDNSClient)
 
 	// HTTP Handlers
 	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
 	a.publicRouter.HandleFunc("/api/v1/servers", listServersHandler.ListServers).Methods(http.MethodGet)
 	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}", listServerHandler.ListServer).Methods(http.MethodGet)
 	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/search-data", searchDataHandler.SearchData).Methods(http.MethodGet)
+	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/forward-zones", forwardZonesHandler.ListForwardZones).Methods(http.MethodGet)
 
 	// HTTP Server
 	publicAddr := net.JoinHostPort(a.cfg.PublicHTTP.Address, a.cfg.PublicHTTP.Port)
