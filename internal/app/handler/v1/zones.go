@@ -96,4 +96,43 @@ func (s *ZonesHandler) ListZones(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("encoding JSON response: %v", err), http.StatusInternalServerError)
 		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 	}
+	s.stats.CountCall(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
+}
+
+// ListZone returs zone by name
+func (s *ZonesHandler) ListZone(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	serverID := vars["serverID"]
+	zoneID := vars["zoneID"]
+
+	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method)
+	defer timer.ObserveDuration()
+
+	w.Header().Set("Content-Type", "application/json;charset=utf-8")
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.PDNS.Timeout)*time.Second)
+	defer cancel()
+
+	zone, err := s.powerDNSClient.Zones().GetZone(ctx, serverID, zoneID)
+	if err != nil {
+		// 404 Not Found
+		if _, ok := err.(pdnshttp.ErrNotFound); ok {
+			http.Error(w, fmt.Sprintf("zone %s not found", zoneID), http.StatusNotFound)
+			s.stats.CountCall(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method, http.StatusNotFound)
+			return
+		}
+		// 500 Internal Error
+		http.Error(w, fmt.Sprintf("list zone %s: %v", zoneID, err), http.StatusInternalServerError)
+		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		return
+	}
+	// 200 OK
+	w.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(w).Encode(zone)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("encoding JSON response: %v", err), http.StatusInternalServerError)
+		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		return
+	}
+	s.stats.CountCall(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
 }
