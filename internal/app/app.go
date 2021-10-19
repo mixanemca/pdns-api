@@ -65,8 +65,8 @@ func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 //The entry point of pdns-api
 func (a *app) Run() {
 	authPowerDNSClient, err := pdnsApi.New(
-		pdnsApi.WithBaseURL(a.config.PDNS.BaseURL),
-		pdnsApi.WithAPIKeyAuthentication(a.config.PDNS.ApiKey),
+		pdnsApi.WithBaseURL(a.config.PDNS.AuthConfig.BaseURL),
+		pdnsApi.WithAPIKeyAuthentication(a.config.PDNS.AuthConfig.ApiKey),
 	)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
@@ -75,8 +75,8 @@ func (a *app) Run() {
 	}
 
 	recursorPowerDNSClient, err := pdnsApi.New(
-		pdnsApi.WithBaseURL(a.config.PDNS.RecursorURL),
-		pdnsApi.WithAPIKeyAuthentication(a.config.PDNS.ApiKey),
+		pdnsApi.WithBaseURL(a.config.PDNS.RecursorConfig.BaseURL),
+		pdnsApi.WithAPIKeyAuthentication(a.config.PDNS.RecursorConfig.ApiKey),
 	)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
