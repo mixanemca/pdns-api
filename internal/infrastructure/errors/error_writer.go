@@ -2,24 +2,25 @@ package errors
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/mixanemca/pdns-api/internal/app/config"
 	"github.com/mixanemca/pdns-api/internal/infrastructure"
 	statistic "github.com/mixanemca/pdns-api/internal/infrastructure/stats"
 	"github.com/sirupsen/logrus"
-	"net/http"
 )
 
 type errorWriter struct {
-	config         config.Config
-	logger         *logrus.Logger
-	stats          statistic.PrometheusStatsCollector
+	config config.Config
+	logger *logrus.Logger
+	stats  statistic.PrometheusStatsCollector
 }
 
 func NewErrorWriter(config config.Config, logger *logrus.Logger, stats statistic.PrometheusStatsCollector) *errorWriter {
 	return &errorWriter{config: config, logger: logger, stats: stats}
 }
 
-	func (s *errorWriter) WriteError(w http.ResponseWriter, urlPath string, action string, err error) {
+func (s *errorWriter) WriteError(w http.ResponseWriter, urlPath string, action string, err error) {
 	var status int
 
 	errorType := GetType(err)

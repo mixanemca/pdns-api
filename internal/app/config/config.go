@@ -49,9 +49,10 @@ type LogConfig struct {
 }
 
 type PDNSConfig struct {
-	BaseURL string `mapstructure:"base-url"`
-	ApiKey  string `mapstructure:"api-key"`
-	Timeout int    `mapstructure:"timeout"`
+	BaseURL     string `mapstructure:"base-url"`
+	RecursorURL string `mapstructure:"recursor-url"`
+	ApiKey      string `mapstructure:"api-key"`
+	Timeout     int    `mapstructure:"timeout"`
 }
 
 type ConsulConfig struct {
@@ -70,6 +71,7 @@ func Init(version, build string) (*Config, error) {
 	viper.SetDefault("public-http.listen-address", "127.0.0.1")
 	viper.SetDefault("public-http.listen-port", 8080)
 	viper.SetDefault("pdns.base-url", "http://127.0.0.1:8081")
+	viper.SetDefault("pdns.base-url", "http://127.0.0.1:8082")
 	viper.SetDefault("pdns.timeout", 10)
 
 	if err := viper.ReadInConfig(); err != nil {

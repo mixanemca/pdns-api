@@ -34,6 +34,7 @@ internal-http:
 # The client for PowerDNS API
 pdns:
   base-url: 'http://127.0.0.1:8081'
+  recursor-url: 'http://127.0.0.1:8082'
   # X-API-Key HTTP header for access to PowerDNS Authoritative API
   api-key: 'pdns'
   # Timeout in seconds

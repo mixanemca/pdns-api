@@ -17,17 +17,18 @@ limitations under the License.
 package app
 
 import (
+	"net"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/hashicorp/consul/api"
 	"github.com/mixanemca/pdns-api/internal/app/handler/v1/private"
 	"github.com/mixanemca/pdns-api/internal/app/handler/v1/public"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone/storage"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
-	"net"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
 
 	pdnsApi "github.com/mittwald/go-powerdns"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
@@ -63,7 +64,7 @@ func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 
 //The entry point of pdns-api
 func (a *app) Run() {
-	powerDNSClient, err := pdnsApi.New(
+	authPowerDNSClient, err := pdnsApi.New(
 		pdnsApi.WithBaseURL(a.config.PDNS.BaseURL),
 		pdnsApi.WithAPIKeyAuthentication(a.config.PDNS.ApiKey),
 	)
@@ -74,7 +75,7 @@ func (a *app) Run() {
 	}
 
 	recursorPowerDNSClient, err := pdnsApi.New(
-		pdnsApi.WithBaseURL("http://127.0.0.1:8082"),
+		pdnsApi.WithBaseURL(a.config.PDNS.RecursorURL),
 		pdnsApi.WithAPIKeyAuthentication(a.config.PDNS.ApiKey),
 	)
 	if err != nil {
@@ -100,14 +101,14 @@ func (a *app) Run() {
 	stats := a.initStats()
 
 	errorWriter := errors.NewErrorWriter(a.config, a.logger, stats)
-	compositeFszStorage := a.createCompositeStoreage()
+	compositeFZStorage := a.createCompositeStoreage()
 
 	healthHandler := public.NewHealthHandler(a.config)
-	listServersHandler := public.NewListServersHandler(a.config, stats, powerDNSClient)
-	listServerHandler := public.NewListServerHandler(a.config, stats, powerDNSClient)
-	searchDataHandler := public.NewListServerHandler(a.config, stats, powerDNSClient)
-	forwardZonesHandler := public.NewForwardZonesHandler(a.config, stats, powerDNSClient)
-	zonesHandler := public.NewZonesHandler(a.config, stats, powerDNSClient)
+	listServersHandler := public.NewListServersHandler(a.config, stats, authPowerDNSClient)
+	listServerHandler := public.NewListServerHandler(a.config, stats, authPowerDNSClient)
+	searchDataHandler := public.NewListServerHandler(a.config, stats, authPowerDNSClient)
+	forwardZonesHandler := public.NewForwardZonesHandler(a.config, stats, authPowerDNSClient)
+	zonesHandler := public.NewZonesHandler(a.config, stats, authPowerDNSClient)
 	versionHandler := public.NewVersionHandler(a.config, stats)
 	
 	// HTTP public Handlers
@@ -124,15 +125,15 @@ func (a *app) Run() {
 	// Prometheus metrics
 	a.publicRouter.Handle("/metrics", promhttp.Handler())
 
-	flushHandler := private.NewFlushHandler(a.config, stats, powerDNSClient, recursorPowerDNSClient, a.logger)
+	flushHandler := private.NewFlushHandler(a.config, stats, authPowerDNSClient, recursorPowerDNSClient, a.logger)
 	addFwzHandler := private.NewAddForwardZoneHandler(
 		a.config,
 		stats,
-		powerDNSClient,
+		authPowerDNSClient,
 		recursorPowerDNSClient,
 		a.logger,
 		errorWriter,
-		compositeFszStorage,
+		compositeFZStorage,
 	)
 
 	// HTTP internal Handlers
