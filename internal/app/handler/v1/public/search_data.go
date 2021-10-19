@@ -19,10 +19,11 @@ package public
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 
 	"github.com/gorilla/mux"
 	pdns "github.com/mittwald/go-powerdns"
@@ -83,7 +84,7 @@ func (s *ListServersHandler) SearchData(w http.ResponseWriter, r *http.Request) 
 		ot = search.ObjectTypeAll
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.PDNS.Timeout)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.PDNS.AuthConfig.Timeout)*time.Second)
 	defer cancel()
 
 	result, err := s.powerDNSClient.Search().Search(ctx, serverID, query, m, ot)
