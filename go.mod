@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
+	github.com/go-ldap/ldap v3.0.3+incompatible // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/hashicorp/consul/api v1.11.0
 	github.com/magefile/mage v1.11.0 // indirect
@@ -24,5 +25,6 @@ require (
 	github.com/stretchr/testify v1.6.1
 	golang.org/x/crypto v0.0.0-20210220033148-5ea612d1eb83 // indirect
 	golang.org/x/net v0.0.0-20210525063256-abc453219eb5
+	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
 	gopkg.in/ini.v1 v1.62.0 // indirect
 )

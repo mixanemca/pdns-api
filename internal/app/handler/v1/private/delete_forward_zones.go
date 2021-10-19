@@ -33,11 +33,7 @@ import (
 	statistic "github.com/mixanemca/pdns-api/internal/infrastructure/stats"
 )
 
-type errorWriter interface {
-	WriteError(w http.ResponseWriter, urlPath string, action string, err error)
-}
-
-type AddForwardZoneHandler struct {
+type DeleteForwardZonesHandler struct {
 	config         config.Config
 	stats          statistic.PrometheusStatsCollector
 	powerDNSClient pdnsApi.Client
@@ -47,12 +43,29 @@ type AddForwardZoneHandler struct {
 	fwzStorage     storage.Storage
 }
 
-func NewAddForwardZoneHandler(config config.Config, stats statistic.PrometheusStatsCollector, powerDNSClient pdnsApi.Client, recursor pdnsApi.Client, logger *logrus.Logger, errorWriter errorWriter, fwzStorage storage.Storage) *AddForwardZoneHandler {
-	return &AddForwardZoneHandler{config: config, stats: stats, powerDNSClient: powerDNSClient, recursor: recursor, logger: logger, errorWriter: errorWriter, fwzStorage: fwzStorage}
+func NewDeleteForwardZonesHandler(
+	config config.Config,
+	stats statistic.PrometheusStatsCollector,
+	powerDNSClient pdnsApi.Client,
+	recursor pdnsApi.Client,
+	logger *logrus.Logger,
+	errorWriter errorWriter,
+	fwzStorage storage.Storage,
+) *DeleteForwardZonesHandler {
+	return &DeleteForwardZonesHandler{
+		config:         config,
+		stats:          stats,
+		powerDNSClient: powerDNSClient,
+		recursor:       recursor,
+		logger:         logger,
+		errorWriter:    errorWriter,
+		fwzStorage:     fwzStorage,
+	}
 }
 
-// AddForwardZonesInternal add forward zone to forward-zones-file
-func (s *AddForwardZoneHandler) AddForwardZonesInternal(w http.ResponseWriter, r *http.Request) {
+// DeleteForwardZonesInternal delete array of forward zones from forward-zones-file
+func (s *DeleteForwardZonesHandler) DeleteForwardZonesInternal(w http.ResponseWriter, r *http.Request) {
+	// Todo too duplicated code. Need refactoring
 	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
 
@@ -62,54 +75,51 @@ func (s *AddForwardZoneHandler) AddForwardZonesInternal(w http.ResponseWriter, r
 
 	err := decoder.Decode(&input)
 	if err != nil {
-		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, errors.Wrap(err, "parsing forward-zones"))
+		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, errors.Wrap(err, "parsing forward-zones"))
 		return
 	}
 
 	// Check input data fields
 	for _, i := range input {
 		if _, err := forwardzone.ParseForwardZoneLine(i.String()); err != nil {
-			s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, errors.Wrap(err, "decoding forward-zones"))
+			s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, errors.Wrap(err, "decoding forward-zones"))
 			return
 		}
 	}
 
 	file, err := os.OpenFile(forwardzone.ForwardZonesFile, os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
-		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, errors.Wrap(err, "reading forward-zones-file"))
+		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, errors.Wrap(err, "reading forward-zones-file"))
 		return
 	}
 	defer file.Close()
 
 	fzs, err := forwardzone.ParseForwardZoneFile(file)
 	if err != nil {
-		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, errors.Wrap(err, "parsing forward-zones-file"))
+		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, errors.Wrap(err, "parsing forward-zones-file"))
 		return
 	}
 	// check exists
 	for _, inputFZ := range input {
-		if forwardzone.ForwardZoneIsExist(fzs, network.Canonicalize("+"+inputFZ.Name)) {
-			fzs, err = forwardzone.UpdateForwardZone(fzs, inputFZ)
-			if err != nil {
-				s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, errors.Wrap(err, "updating forward-zone"))
-				return
-			}
-			continue
+		fzs, err = forwardzone.DeleteForwardZone(fzs, network.Canonicalize(inputFZ.Name))
+		if err != nil {
+			s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, errors.Wrap(err, "updating forward-zone"))
+			return
 		}
-		fzs = append(fzs, inputFZ)
+		continue
 	}
 
 	err = s.fwzStorage.Save(fzs)
 	if err != nil {
-		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, err)
+		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, err)
 		return
 	}
 
 	for _, inputFZ := range input {
 		s.logger.WithFields(logrus.Fields{
-			"action":       log.ActionForwardZoneAdd,
+			"action":       log.ActionForwardZoneDelete,
 			"forward-zone": network.DeCanonicalize(inputFZ.Name),
-		}).Infof("Forward zone %s added", network.DeCanonicalize(inputFZ.Name))
+		}).Infof("Forward zone %s was deleted", network.DeCanonicalize(inputFZ.Name))
 	}
 	w.WriteHeader(http.StatusCreated)
 	s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusCreated)

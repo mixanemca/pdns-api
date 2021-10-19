@@ -22,7 +22,7 @@ import (
 	"runtime"
 
 	"github.com/mixanemca/pdns-api/internal/app/config"
-	"github.com/mixanemca/pdns-api/internal/infrastructure"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
 )
 
@@ -46,7 +46,7 @@ func NewVersionHandler(config config.Config, stats stats.PrometheusStatsCollecto
 
 // Get returns json with version info
 func (s *VersionHandler) Get(w http.ResponseWriter, r *http.Request) {
-	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method)
+	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
@@ -54,8 +54,8 @@ func (s *VersionHandler) Get(w http.ResponseWriter, r *http.Request) {
 	err := json.NewEncoder(w).Encode(s)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 		return
 	}
-	s.stats.CountCall(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
+	s.stats.CountCall(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
 }

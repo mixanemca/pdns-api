@@ -20,7 +20,10 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
+
 	"net/http"
 	"os"
 
@@ -28,7 +31,6 @@ import (
 	"github.com/hashicorp/consul/api"
 	pdnsApi "github.com/mittwald/go-powerdns"
 	"github.com/mixanemca/pdns-api/internal/app/config"
-	"github.com/mixanemca/pdns-api/internal/infrastructure"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
 )
 
@@ -45,13 +47,13 @@ func NewForwardZonesHandler(config config.Config, stats stats.PrometheusStatsCol
 
 // ListForwardZones returns forwarding zones list
 func (s *ForwardZonesHandler) ListForwardZones(w http.ResponseWriter, r *http.Request) {
-	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method)
+	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
 
 	file, err := os.Open(forwardzone.ForwardZonesFile)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("reading forward-zones-file: %v", err), http.StatusInternalServerError)
-		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 		return
 	}
 	defer file.Close()
@@ -71,10 +73,10 @@ func (s *ForwardZonesHandler) ListForwardZones(w http.ResponseWriter, r *http.Re
 	err = json.NewEncoder(w).Encode(fzs)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("encoding forward-zones: %v", err), http.StatusInternalServerError)
-		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 		return
 	}
-	s.stats.CountCall(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
+	s.stats.CountCall(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
 }
 
 // ListForwardZone returns forwarding zone by name
@@ -82,13 +84,13 @@ func (s *ForwardZonesHandler) ListForwardZone(w http.ResponseWriter, r *http.Req
 	vars := mux.Vars(r)
 	zoneID := vars["zoneID"]
 
-	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method)
+	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
 
 	file, err := os.Open(forwardzone.ForwardZonesFile)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("reading forward-zones-file: %v", err), http.StatusInternalServerError)
-		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 		return
 	}
 	defer file.Close()
@@ -104,13 +106,13 @@ func (s *ForwardZonesHandler) ListForwardZone(w http.ResponseWriter, r *http.Req
 			err := json.NewEncoder(w).Encode(fz)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("encoding forward-zones: %v", err), http.StatusInternalServerError)
-				s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+				s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 				return
 			}
-			s.stats.CountCall(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
+			s.stats.CountCall(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
 			return
 		}
 	}
 	w.WriteHeader(http.StatusNotFound)
-	s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusNotFound)
+	s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusNotFound)
 }

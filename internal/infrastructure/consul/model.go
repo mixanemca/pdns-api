@@ -1,6 +1,8 @@
 package consul
 
-import "github.com/mixanemca/pdns-api/internal/infrastructure"
+import (
+	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
+)
 
 type consuleAgent struct {
 	Name     string
@@ -18,7 +20,7 @@ type consuleAgent struct {
 var consuleAgentsForInteralService = []consuleAgent{
 	{
 		Name:     pdnsServiceName,
-		Addres:   infrastructure.GetHostname(),
+		Addres:   network.GetHostname(),
 		ID:       pdnsServiceName,
 		Port:     8080,
 		Url:      "http://127.0.0.1:8080/api/v1/health",
@@ -28,7 +30,7 @@ var consuleAgentsForInteralService = []consuleAgent{
 	},
 	{
 		Name:     pdnsInternalServiceName,
-		Addres:   infrastructure.GetHostname(),
+		Addres:   network.GetHostname(),
 		ID:       pdnsInternalServiceName,
 		Port:     8090,
 		Url:      "http://127.0.0.1:8080/api/v1/health",
@@ -38,7 +40,7 @@ var consuleAgentsForInteralService = []consuleAgent{
 	},
 	{
 		Name:     pdnsAuthoritativeServiceName,
-		Addres:   infrastructure.GetHostname(),
+		Addres:   network.GetHostname(),
 		ID:       pdnsAuthoritativeServiceName,
 		Port:     8081,
 		Url:      "http://127.0.0.1:8081/api/v1/servers",
@@ -48,7 +50,7 @@ var consuleAgentsForInteralService = []consuleAgent{
 	},
 	{
 		Name:     pdnsRecursorServiceName,
-		Addres:   infrastructure.GetHostname(),
+		Addres:   network.GetHostname(),
 		ID:       pdnsRecursorServiceName,
 		Port:     8082,
 		Url:      "http://127.0.0.1:8082/api/v1/servers",

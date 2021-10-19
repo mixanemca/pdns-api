@@ -14,11 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package infrastructure
+package network
 
 import (
-	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
-	"net/http"
 	"os"
 )
 
@@ -44,22 +42,4 @@ func DeCanonicalize(name string) string {
 		return name[:len(name)-1]
 	}
 	return name
-}
-
-func GetStatusByError(err error) int {
-	var status int
-
-	errorType := errors.GetType(err)
-	switch errorType {
-	case errors.BadRequest:
-		status = http.StatusBadRequest
-	case errors.NotFound:
-		status = http.StatusNotFound
-	case errors.Conflict:
-		status = http.StatusConflict
-	default:
-		status = http.StatusInternalServerError
-	}
-
-	return status
 }

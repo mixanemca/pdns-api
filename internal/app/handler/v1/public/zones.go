@@ -27,7 +27,7 @@ import (
 	"github.com/mittwald/go-powerdns/apis/zones"
 	"github.com/mittwald/go-powerdns/pdnshttp"
 	"github.com/mixanemca/pdns-api/internal/app/config"
-	"github.com/mixanemca/pdns-api/internal/infrastructure"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
 	"golang.org/x/net/context"
 )
@@ -48,7 +48,7 @@ func (s *ZonesHandler) ListZones(w http.ResponseWriter, r *http.Request) {
 	serverID := vars["serverID"]
 	zoneID := r.FormValue("zone")
 
-	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method)
+	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
@@ -66,12 +66,12 @@ func (s *ZonesHandler) ListZones(w http.ResponseWriter, r *http.Request) {
 			// 404 Not Found
 			if _, ok := err.(pdnshttp.ErrNotFound); ok {
 				http.Error(w, fmt.Sprintf("zone %s not found", zoneID), http.StatusNotFound)
-				s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusNotFound)
+				s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusNotFound)
 				return
 			}
 			// 500 Internal Serrver Error
 			http.Error(w, fmt.Sprintf("list zone %s: %v", zoneID, err), http.StatusInternalServerError)
-			s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+			s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 			return
 		}
 		// 200 OK
@@ -79,7 +79,7 @@ func (s *ZonesHandler) ListZones(w http.ResponseWriter, r *http.Request) {
 		err = json.NewEncoder(w).Encode(zones)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("encoding JSON response: %v", err), http.StatusInternalServerError)
-			s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+			s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 		}
 		return
 	}
@@ -94,9 +94,9 @@ func (s *ZonesHandler) ListZones(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(zones)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("encoding JSON response: %v", err), http.StatusInternalServerError)
-		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 	}
-	s.stats.CountCall(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
+	s.stats.CountCall(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
 }
 
 // ListZone returs zone by name
@@ -105,7 +105,7 @@ func (s *ZonesHandler) ListZone(w http.ResponseWriter, r *http.Request) {
 	serverID := vars["serverID"]
 	zoneID := vars["zoneID"]
 
-	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method)
+	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
@@ -118,12 +118,12 @@ func (s *ZonesHandler) ListZone(w http.ResponseWriter, r *http.Request) {
 		// 404 Not Found
 		if _, ok := err.(pdnshttp.ErrNotFound); ok {
 			http.Error(w, fmt.Sprintf("zone %s not found", zoneID), http.StatusNotFound)
-			s.stats.CountCall(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method, http.StatusNotFound)
+			s.stats.CountCall(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method, http.StatusNotFound)
 			return
 		}
 		// 500 Internal Error
 		http.Error(w, fmt.Sprintf("list zone %s: %v", zoneID, err), http.StatusInternalServerError)
-		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 		return
 	}
 	// 200 OK
@@ -131,8 +131,8 @@ func (s *ZonesHandler) ListZone(w http.ResponseWriter, r *http.Request) {
 	err = json.NewEncoder(w).Encode(zone)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("encoding JSON response: %v", err), http.StatusInternalServerError)
-		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 		return
 	}
-	s.stats.CountCall(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
+	s.stats.CountCall(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
 }

@@ -19,13 +19,13 @@ package forwardzone
 import (
 	"bufio"
 	"fmt"
-	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
 	"io"
 	"regexp"
 	"sort"
 	"strings"
 
-	"github.com/mixanemca/pdns-api/internal/infrastructure"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 )
 
 var re = regexp.MustCompile(`([a-zA-Z0-9.-]+)\s?=\s?([a-zA-Z0-9.:, ]+)`)
@@ -46,7 +46,7 @@ func (fzs ForwardZones) Swap(i, j int)      { fzs[i], fzs[j] = fzs[j], fzs[i] }
 
 // String implements fmt.Stringer interface
 func (fz ForwardZone) String() string {
-	return fmt.Sprintf("%s=%s\n", infrastructure.Canonicalize(fz.Name), strings.Join(fz.Nameservers, ","))
+	return fmt.Sprintf("%s=%s\n", network.Canonicalize(fz.Name), strings.Join(fz.Nameservers, ","))
 }
 
 // ParseForwardZoneLine parse string to ForwardZone
@@ -65,7 +65,6 @@ func ParseForwardZoneLine(s string) (*ForwardZone, error) {
 
 	return fz, nil
 }
-
 
 func ParseForwardZoneFile(r io.Reader) (ForwardZones, error) {
 	fzs := make(ForwardZones, 0)
@@ -90,16 +89,26 @@ func ParseForwardZoneFile(r io.Reader) (ForwardZones, error) {
 
 func ForwardZoneIsExist(fzs ForwardZones, searchName string) bool {
 	sort.Sort(fzs)
-	idx := sort.Search(len(fzs), func(i int) bool { return fzs[i].Name == infrastructure.Canonicalize(searchName) })
-	return idx < len(fzs) && fzs[idx].Name == infrastructure.Canonicalize(searchName)
+	idx := sort.Search(len(fzs), func(i int) bool { return fzs[i].Name == network.Canonicalize(searchName) })
+	return idx < len(fzs) && fzs[idx].Name == network.Canonicalize(searchName)
 }
 
 func UpdateForwardZone(fzs ForwardZones, fz ForwardZone) (ForwardZones, error) {
 	for i := range fzs {
-		if fzs[i].Name == infrastructure.Canonicalize(fz.Name) {
+		if fzs[i].Name == network.Canonicalize(fz.Name) {
 			fzs[i] = fz
 			return fzs, nil
 		}
 	}
 	return fzs, errors.Newf("forward-zone %s not found", fz.Name)
+}
+
+func DeleteForwardZone(fzs []ForwardZone, deleteName string) ([]ForwardZone, error) {
+	for i := range fzs {
+		if fzs[i].Name == network.Canonicalize(deleteName) {
+			fzs = append(fzs[:i], fzs[i+1:]...)
+			return fzs, nil
+		}
+	}
+	return nil, fmt.Errorf("forwarding zone %s not found", deleteName)
 }
