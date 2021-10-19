@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1
+package public
 
 import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"net/http"
 	"os"
 
@@ -29,7 +30,6 @@ import (
 	"github.com/mixanemca/pdns-api/internal/app/config"
 	"github.com/mixanemca/pdns-api/internal/infrastructure"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
-	"github.com/mixanemca/pdns-api/internal/pdns"
 )
 
 type ForwardZonesHandler struct {
@@ -48,7 +48,7 @@ func (s *ForwardZonesHandler) ListForwardZones(w http.ResponseWriter, r *http.Re
 	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
 
-	file, err := os.Open(pdns.ForwardZonesFile)
+	file, err := os.Open(forwardzone.ForwardZonesFile)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("reading forward-zones-file: %v", err), http.StatusInternalServerError)
 		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
@@ -56,12 +56,12 @@ func (s *ForwardZonesHandler) ListForwardZones(w http.ResponseWriter, r *http.Re
 	}
 	defer file.Close()
 
-	fzs := make(pdns.ForwardZones, 0)
+	fzs := make(forwardzone.ForwardZones, 0)
 	scanner := bufio.NewScanner(file)
 	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
 		s := scanner.Text()
-		fz, _ := pdns.ParseForwardZoneLine(s)
+		fz, _ := forwardzone.ParseForwardZoneLine(s)
 		if fz != nil {
 			fzs = append(fzs, *fz)
 		}
@@ -85,7 +85,7 @@ func (s *ForwardZonesHandler) ListForwardZone(w http.ResponseWriter, r *http.Req
 	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
 
-	file, err := os.Open(pdns.ForwardZonesFile)
+	file, err := os.Open(forwardzone.ForwardZonesFile)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("reading forward-zones-file: %v", err), http.StatusInternalServerError)
 		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
@@ -97,7 +97,7 @@ func (s *ForwardZonesHandler) ListForwardZone(w http.ResponseWriter, r *http.Req
 	scanner.Split(bufio.ScanLines)
 	for scanner.Scan() {
 		scnr := scanner.Text()
-		fz, _ := pdns.ParseForwardZoneLine(scnr)
+		fz, _ := forwardzone.ParseForwardZoneLine(scnr)
 		if fz.Name == zoneID {
 			// 200 OK
 			w.WriteHeader(http.StatusOK)
