@@ -56,7 +56,7 @@ func (s *ZonesHandler) ListZones(w http.ResponseWriter, r *http.Request) {
 	var zones []zones.Zone
 	var err error
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(s.config.PDNS.Timeout)*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(s.config.PDNS.AuthConfig.Timeout)*time.Second)
 	defer cancel()
 
 	// Get zone by name from query parameters
@@ -110,7 +110,7 @@ func (s *ZonesHandler) ListZone(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.PDNS.Timeout)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.PDNS.AuthConfig.Timeout)*time.Second)
 	defer cancel()
 
 	zone, err := s.powerDNSClient.Zones().GetZone(ctx, serverID, zoneID)
