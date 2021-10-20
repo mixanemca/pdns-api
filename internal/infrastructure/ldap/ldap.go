@@ -120,7 +120,7 @@ func (s *ldapService) LDAPAddZone(zoneType, zone string) error {
 	}
 
 	// Add CN's to new zone
-	if err := s.LDAPAddCN(zoneType, zone, cnTypeReplace, cnTypeDelete); err != nil {
+	if err := s.LDAPAddCN(zoneType, zone, CNTypeReplace, CNTypeDelete); err != nil {
 		// Cleanup
 		_ = s.LDAPDelZone(zoneType, zone)
 		return errors.Wrapf(err, "adding %s zone to %s", zone, zoneType)
@@ -140,7 +140,7 @@ func (s *ldapService) LDAPDelZone(zoneType, zone string) error {
 	}
 
 	// Del CN's from zone
-	if err := s.LDAPDelCN(zoneType, zone, cnTypeReplace, cnTypeDelete); err != nil {
+	if err := s.LDAPDelCN(zoneType, zone, CNTypeReplace, CNTypeDelete); err != nil {
 		return errors.Wrapf(err, "remove %s zone from %s", zone, zoneType)
 	}
 

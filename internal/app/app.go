@@ -24,12 +24,18 @@ import (
 	"syscall"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/consul/connect"
 	"github.com/mixanemca/pdns-api/internal/app/handler/v1/common"
 	"github.com/mixanemca/pdns-api/internal/app/handler/v1/private"
 	"github.com/mixanemca/pdns-api/internal/app/handler/v1/public"
+	"github.com/mixanemca/pdns-api/internal/app/middleware"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone/storage"
+	"github.com/mixanemca/pdns-api/internal/domain/zone"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/client"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/ldap"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
+	"github.com/spf13/viper"
 
 	pdnsApi "github.com/mittwald/go-powerdns"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
@@ -102,7 +108,7 @@ func (a *app) Run() {
 	prometheusStats := a.initStats()
 
 	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
-	compositeFZStorage := a.createCompositeStoreage()
+	compositeFZStorage := a.createCompositeStorage()
 
 	healthHandler := common.NewHealthHandler(a.config)
 	listServersHandler := public.NewListServersHandler(a.config, prometheusStats, authPowerDNSClient)
@@ -172,6 +178,74 @@ func (a *app) Run() {
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", updateForwardZonesHandler.UpdateForwardZonesInternal).Methods(http.MethodPatch)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", deleteForwardZoneHandler.DeleteForwardZoneInternal).Methods(http.MethodDelete)
 
+	if viper.GetBool("ldap.enabled") {
+		// Create a service for pdns-api-internal
+		internalService, err := connect.NewService(client.PDNSInternalServiceName, a.consul)
+		if err != nil {
+			a.logger.WithFields(logrus.Fields{
+				"action": log.ActionSystem,
+			}).Fatalf("Cannot create a Consul Connect service %s: %v", client.PDNSInternalServiceName, err)
+		}
+
+		ldapService, err := ldap.NewLDAPService(a.logger, a.config)
+		if err != nil {
+			a.logger.WithFields(logrus.Fields{
+				"action": log.ActionSystem,
+			}).Fatalf("Cannot create a ldap auth client: %v", err)
+		}
+
+		ptrRecorder := zone.NewPTR(a.logger, authPowerDNSClient)
+		internalClient := client.NewClient(
+			a.config,
+			a.consul,
+			internalService,
+		)
+
+		authMiddleware := middleware.NewAuthMiddleware(
+			a.config,
+			errorWriter,
+			prometheusStats,
+			a.logger,
+			ldapService,
+		)
+
+		addZoneHanler := public.NewAddZone(
+			a.config,
+			ldapService,
+			errorWriter,
+			prometheusStats,
+			a.logger,
+			authPowerDNSClient,
+		)
+
+		deleteZoneHanler := public.NewDeleteZone(
+			a.config,
+			ldapService,
+			errorWriter,
+			prometheusStats,
+			a.logger,
+			authPowerDNSClient,
+		)
+
+		patchZoneHanler := public.NewPatchZone(
+			a.config,
+			ldapService,
+			errorWriter,
+			prometheusStats,
+			a.logger,
+			authPowerDNSClient,
+			ptrRecorder,
+			internalClient,
+		)
+
+		authRouter := a.publicRouter.Methods(http.MethodDelete, http.MethodPatch, http.MethodPost).Subrouter()
+		authRouter.Use(authMiddleware.AuthMiddleware)
+		// HTTP Handlers with Authorization
+		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}", addZoneHanler.AddZone).Methods(http.MethodPost)
+		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", patchZoneHanler.PatchZone).Methods(http.MethodPatch)
+		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", deleteZoneHanler.DeleteZone).Methods(http.MethodDelete)
+	}
+
 	// HTTP Server
 	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
 
@@ -198,7 +272,7 @@ func (a *app) Run() {
 	a.logger.Info("Server stopped")
 }
 
-func (a *app) createCompositeStoreage() storage.Storage {
+func (a *app) createCompositeStorage() storage.Storage {
 	fsStorage := storage.NewFSStorage(forwardzone.ForwardZonesFile)
 	consulStorage := storage.NewConsuleStorage(a.consul)
 	return storage.NewCompositeStorage([]storage.Storage{fsStorage, consulStorage})
