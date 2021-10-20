@@ -18,15 +18,16 @@ package private
 
 import (
 	"encoding/json"
+	"net/http"
+
 	"github.com/gorilla/mux"
 	pdnsApi "github.com/mittwald/go-powerdns"
 	"github.com/mittwald/go-powerdns/pdnshttp"
 	"github.com/mixanemca/pdns-api/internal/app/config"
-	"github.com/mixanemca/pdns-api/internal/infrastructure"
 	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
-	"net/http"
 
 	statistic "github.com/mixanemca/pdns-api/internal/infrastructure/stats"
 )
@@ -49,7 +50,7 @@ func (s *FlushHandler) FlushInternal(w http.ResponseWriter, r *http.Request) {
 	serverID := vars["serverID"]
 	domain := r.FormValue("domain")
 
-	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method)
+	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
 
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
@@ -58,16 +59,16 @@ func (s *FlushHandler) FlushInternal(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
 			"action": log.ActionSystem,
-			"rr":     infrastructure.DeCanonicalize(domain),
+			"rr":     network.DeCanonicalize(domain),
 		}).Error(err.Error())
 		err := json.NewEncoder(w).Encode(err)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+			s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(err.(pdnshttp.ErrUnexpectedStatus).StatusCode)
-		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, err.(pdnshttp.ErrUnexpectedStatus).StatusCode)
+		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, err.(pdnshttp.ErrUnexpectedStatus).StatusCode)
 		return
 	}
 	// Recursive
@@ -75,29 +76,29 @@ func (s *FlushHandler) FlushInternal(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.logger.WithFields(logrus.Fields{
 			"action": log.ActionFlushCache,
-			"rr":     infrastructure.DeCanonicalize(domain),
+			"rr":     network.DeCanonicalize(domain),
 		}).Error(err.Error())
 		err := json.NewEncoder(w).Encode(err)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
-			s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+			s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(err.(pdnshttp.ErrUnexpectedStatus).StatusCode)
-		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, err.(pdnshttp.ErrUnexpectedStatus).StatusCode)
+		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, err.(pdnshttp.ErrUnexpectedStatus).StatusCode)
 		return
 	}
 	s.logger.WithFields(logrus.Fields{
 		"action": log.ActionFlushCache,
-		"rr":     infrastructure.DeCanonicalize(domain),
-	}).Infof("%s for %s", log.ActionFlushCache, infrastructure.DeCanonicalize(domain))
+		"rr":     network.DeCanonicalize(domain),
+	}).Infof("%s for %s", log.ActionFlushCache, network.DeCanonicalize(domain))
 	authResult.Count += recResult.Count
 	w.WriteHeader(http.StatusOK)
 	err = json.NewEncoder(w).Encode(authResult)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 		return
 	}
-	s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusOK)
+	s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusOK)
 }

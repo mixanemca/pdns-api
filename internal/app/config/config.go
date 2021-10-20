@@ -28,6 +28,7 @@ type Config struct {
 	Log         LogConfig    `mapstructure:"log"`
 	PDNS        PDNSConfig   `mapstructure:"pdns"`
 	Consul      ConsulConfig `mapstructure:"consul"`
+	LDAP        LDAPConfig   `mapstructure:"ldap"`
 	Version     string
 	Build       string
 }
@@ -65,6 +66,18 @@ type AuthConfig struct {
 	Timeout int    `mapstructure:"timeout"`
 }
 
+// LDAPConfig represents LDAP settings in config
+type LDAPConfig struct {
+	Enabled      bool   `mapstructure:"enabled"`
+	URL          string `mapstructure:"url"`
+	User         string `mapstructure:"user"`
+	Password     string `mapstructure:"password"`
+	BaseDN       string `mapstructure:"base-dn"`
+	SearchBase   string `mapstructure:"search-base"`
+	SearchFilter string `mapstructure:"search-filter"`
+	Debug        bool   `mapstructure:"debug"`
+}
+
 type ConsulConfig struct {
 	Address string `mastructure:"address"`
 }
@@ -84,6 +97,7 @@ func Init(version, build string) (*Config, error) {
 	viper.SetDefault("pdns.auth.timeout", 10)
 	viper.SetDefault("pdns.recursor.base-url", "http://127.0.0.1:8082")
 	viper.SetDefault("pdns.recursor.timeout", 10)
+	viper.SetDefault("ldap.enabled", false)
 
 	if err := viper.ReadInConfig(); err != nil {
 		return nil, err

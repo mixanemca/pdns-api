@@ -14,14 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package public
+package common
 
 import (
 	"encoding/json"
 	"net/http"
 
 	"github.com/mixanemca/pdns-api/internal/app/config"
-	"github.com/mixanemca/pdns-api/internal/infrastructure"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 )
 
 type alive struct {
@@ -45,7 +45,7 @@ func (h *HealthHandler) Health(w http.ResponseWriter, r *http.Request) {
 	// TODO: add real checks
 	a := alive{
 		Status:   true,
-		Hostname: infrastructure.GetHostname(),
+		Hostname: network.GetHostname(),
 	}
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	w.WriteHeader(http.StatusOK)

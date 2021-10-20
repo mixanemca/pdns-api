@@ -24,7 +24,7 @@ import (
 
 	pdns "github.com/mittwald/go-powerdns"
 	"github.com/mixanemca/pdns-api/internal/app/config"
-	"github.com/mixanemca/pdns-api/internal/infrastructure"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
 	"golang.org/x/net/context"
 )
@@ -41,7 +41,7 @@ func NewListServersHandler(config config.Config, stats stats.PrometheusStatsColl
 
 // ListServers list all servers
 func (s *ListServersHandler) ListServers(w http.ResponseWriter, r *http.Request) {
-	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method)
+	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
 
 	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(s.config.PDNS.AuthConfig.Timeout)*time.Second)
@@ -50,7 +50,7 @@ func (s *ListServersHandler) ListServers(w http.ResponseWriter, r *http.Request)
 	servers, err := s.powerDNSClient.Servers().ListServers(ctx)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("failed to get all servers list: %v", err), http.StatusInternalServerError)
-		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
@@ -58,8 +58,8 @@ func (s *ListServersHandler) ListServers(w http.ResponseWriter, r *http.Request)
 	err = json.NewEncoder(w).Encode(servers)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
 		return
 	}
-	s.stats.CountCall(s.config.Environment, infrastructure.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
+	s.stats.CountCall(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
 }

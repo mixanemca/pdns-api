@@ -1,11 +1,11 @@
-package errors
+package network
 
 import (
 	"fmt"
 	"net/http"
 
 	"github.com/mixanemca/pdns-api/internal/app/config"
-	"github.com/mixanemca/pdns-api/internal/infrastructure"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
 	statistic "github.com/mixanemca/pdns-api/internal/infrastructure/stats"
 	"github.com/sirupsen/logrus"
 )
@@ -23,13 +23,13 @@ func NewErrorWriter(config config.Config, logger *logrus.Logger, stats statistic
 func (s *errorWriter) WriteError(w http.ResponseWriter, urlPath string, action string, err error) {
 	var status int
 
-	errorType := GetType(err)
+	errorType := errors.GetType(err)
 	switch errorType {
-	case BadRequest:
+	case errors.BadRequest:
 		status = http.StatusBadRequest
-	case NotFound:
+	case errors.NotFound:
 		status = http.StatusNotFound
-	case Conflict:
+	case errors.Conflict:
 		status = http.StatusConflict
 	default:
 		status = http.StatusInternalServerError
@@ -44,5 +44,5 @@ func (s *errorWriter) WriteError(w http.ResponseWriter, urlPath string, action s
 		"action": action,
 	}).Error(err.Error())
 
-	s.stats.CountError(s.config.Environment, infrastructure.GetHostname(), urlPath, status)
+	s.stats.CountError(s.config.Environment, GetHostname(), urlPath, status)
 }

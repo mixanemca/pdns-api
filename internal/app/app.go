@@ -24,11 +24,12 @@ import (
 	"syscall"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/mixanemca/pdns-api/internal/app/handler/v1/common"
 	"github.com/mixanemca/pdns-api/internal/app/handler/v1/private"
 	"github.com/mixanemca/pdns-api/internal/app/handler/v1/public"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone/storage"
-	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 
 	pdnsApi "github.com/mittwald/go-powerdns"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
@@ -43,7 +44,7 @@ import (
 )
 
 type app struct {
-	config config.Config
+	config         config.Config
 	consul         *api.Client
 	logger         *logrus.Logger
 	internalRouter *mux.Router
@@ -55,7 +56,7 @@ func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 	internalRouter := mux.NewRouter()
 
 	return &app{
-		config: cfg,
+		config:         cfg,
 		logger:         logger,
 		internalRouter: internalRouter,
 		publicRouter:   publicRouter,
@@ -98,19 +99,19 @@ func (a *app) Run() {
 		}).Fatalf("Cannot create a Consul API client: %v", err)
 	}
 
-	stats := a.initStats()
+	prometheusStats := a.initStats()
 
-	errorWriter := errors.NewErrorWriter(a.config, a.logger, stats)
+	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
 	compositeFZStorage := a.createCompositeStoreage()
 
-	healthHandler := public.NewHealthHandler(a.config)
-	listServersHandler := public.NewListServersHandler(a.config, stats, authPowerDNSClient)
-	listServerHandler := public.NewListServerHandler(a.config, stats, authPowerDNSClient)
-	searchDataHandler := public.NewListServerHandler(a.config, stats, authPowerDNSClient)
-	forwardZonesHandler := public.NewForwardZonesHandler(a.config, stats, authPowerDNSClient)
-	zonesHandler := public.NewZonesHandler(a.config, stats, authPowerDNSClient)
-	versionHandler := public.NewVersionHandler(a.config, stats)
-	
+	healthHandler := common.NewHealthHandler(a.config)
+	listServersHandler := public.NewListServersHandler(a.config, prometheusStats, authPowerDNSClient)
+	listServerHandler := public.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
+	searchDataHandler := public.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
+	forwardZonesHandler := public.NewForwardZonesHandler(a.config, prometheusStats, authPowerDNSClient)
+	zonesHandler := public.NewZonesHandler(a.config, prometheusStats, authPowerDNSClient)
+	versionHandler := public.NewVersionHandler(a.config, prometheusStats)
+
 	// HTTP public Handlers
 	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
 	a.publicRouter.HandleFunc("/api/v1/servers", listServersHandler.ListServers).Methods(http.MethodGet)
@@ -125,10 +126,37 @@ func (a *app) Run() {
 	// Prometheus metrics
 	a.publicRouter.Handle("/metrics", promhttp.Handler())
 
-	flushHandler := private.NewFlushHandler(a.config, stats, authPowerDNSClient, recursorPowerDNSClient, a.logger)
-	addFwzHandler := private.NewAddForwardZoneHandler(
+	flushHandler := private.NewFlushHandler(a.config, prometheusStats, authPowerDNSClient, recursorPowerDNSClient, a.logger)
+	addForwardZoneHandler := private.NewAddForwardZoneHandler(
 		a.config,
-		stats,
+		prometheusStats,
+		authPowerDNSClient,
+		recursorPowerDNSClient,
+		a.logger,
+		errorWriter,
+		compositeFZStorage,
+	)
+	deleteForwardZoneHandler := private.NewDeleteForwardZoneHandler(
+		a.config,
+		prometheusStats,
+		authPowerDNSClient,
+		recursorPowerDNSClient,
+		a.logger,
+		errorWriter,
+		compositeFZStorage,
+	)
+	deleteForwardZonesHandler := private.NewDeleteForwardZonesHandler(
+		a.config,
+		prometheusStats,
+		authPowerDNSClient,
+		recursorPowerDNSClient,
+		a.logger,
+		errorWriter,
+		compositeFZStorage,
+	)
+	updateForwardZonesHandler := private.NewUpdateForwardZoneHandler(
+		a.config,
+		prometheusStats,
 		authPowerDNSClient,
 		recursorPowerDNSClient,
 		a.logger,
@@ -137,8 +165,12 @@ func (a *app) Run() {
 	)
 
 	// HTTP internal Handlers
-	a.publicRouter.HandleFunc("/api/v1/internal/{serverID}/cache/flush", flushHandler.FlushInternal).Methods(http.MethodPut)
-	a.publicRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", addFwzHandler.AddForwardZonesInternal).Methods(http.MethodPost)
+	a.internalRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
+	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/cache/flush", flushHandler.FlushInternal).Methods(http.MethodPut)
+	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", addForwardZoneHandler.AddForwardZonesInternal).Methods(http.MethodPost)
+	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", deleteForwardZonesHandler.DeleteForwardZonesInternal).Methods(http.MethodDelete)
+	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", updateForwardZonesHandler.UpdateForwardZonesInternal).Methods(http.MethodPatch)
+	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", deleteForwardZoneHandler.DeleteForwardZoneInternal).Methods(http.MethodDelete)
 
 	// HTTP Server
 	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
