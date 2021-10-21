@@ -34,7 +34,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-type AddForwardZoneHandler struct {
+type AddForwardZonesHandler struct {
 	config         config.Config
 	ldapZoneAdder  ldap.LDAPZoneAdder
 	errorWriter    errorWriter
@@ -43,12 +43,12 @@ type AddForwardZoneHandler struct {
 	internalClient internalClient
 }
 
-func NewAddForwardZoneHandler(config config.Config, ldapZoneAdder ldap.LDAPZoneAdder, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, internalClient internalClient) *AddForwardZoneHandler {
-	return &AddForwardZoneHandler{config: config, ldapZoneAdder: ldapZoneAdder, errorWriter: errorWriter, stats: stats, logger: logger, internalClient: internalClient}
+func NewAddForwardZonesHandler(config config.Config, ldapZoneAdder ldap.LDAPZoneAdder, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, internalClient internalClient) *AddForwardZonesHandler {
+	return &AddForwardZonesHandler{config: config, ldapZoneAdder: ldapZoneAdder, errorWriter: errorWriter, stats: stats, logger: logger, internalClient: internalClient}
 }
 
 // AddForwardZone creates a new forwarding zone
-func (s *AddForwardZoneHandler) AddForwardZone(w http.ResponseWriter, r *http.Request) {
+func (s *AddForwardZonesHandler) AddForwardZones(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	serverID := vars["serverID"]
 	zoneType := vars["zoneType"]
@@ -102,7 +102,7 @@ func (s *AddForwardZoneHandler) AddForwardZone(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	if err = s.internalClient.AddZone(serverID, zoneType, bodyBytes); err != nil {
+	if err := s.internalClient.AddZone(serverID, zoneType, bodyBytes); err != nil {
 		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, err)
 		return
 	}
