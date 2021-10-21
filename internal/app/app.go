@@ -228,7 +228,6 @@ func (a *app) Run() {
 
 	patchZoneHanler := public.NewPatchZone(
 		a.config,
-		ldapService,
 		errorWriter,
 		prometheusStats,
 		a.logger,

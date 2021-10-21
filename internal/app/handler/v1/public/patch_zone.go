@@ -28,18 +28,17 @@ type ptrrecorder interface {
 }
 
 type PatchZone struct {
-	config          config.Config
-	ldapZoneDeleter LDAPZoneDeleter
-	errorWriter     errorWriter
-	stats           stats.PrometheusStatsCollector
-	logger          *logrus.Logger
-	auth            pdnsApi.Client
-	ptrrecorder     ptrrecorder
-	internalClient  internalClient
+	config         config.Config
+	errorWriter    errorWriter
+	stats          stats.PrometheusStatsCollector
+	logger         *logrus.Logger
+	auth           pdnsApi.Client
+	ptrrecorder    ptrrecorder
+	internalClient internalClient
 }
 
-func NewPatchZone(config config.Config, ldapZoneDeleter LDAPZoneDeleter, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, auth pdnsApi.Client, ptrrecorder ptrrecorder, internalClient internalClient) *PatchZone {
-	return &PatchZone{config: config, ldapZoneDeleter: ldapZoneDeleter, errorWriter: errorWriter, stats: stats, logger: logger, auth: auth, ptrrecorder: ptrrecorder, internalClient: internalClient}
+func NewPatchZone(config config.Config, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, auth pdnsApi.Client, ptrrecorder ptrrecorder, internalClient internalClient) *PatchZone {
+	return &PatchZone{config: config, errorWriter: errorWriter, stats: stats, logger: logger, auth: auth, ptrrecorder: ptrrecorder, internalClient: internalClient}
 }
 
 // PatchZone Deletes this zone, all attached metadata and rrsets.

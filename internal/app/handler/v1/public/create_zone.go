@@ -32,6 +32,7 @@ import (
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"github.com/mixanemca/pdns-api/internal/domain/zone"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/ldap"
 	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
@@ -41,16 +42,16 @@ import (
 )
 
 type AddZone struct {
-	config          config.Config
-	ldapZoneDeleter LDAPZoneDeleter
-	errorWriter     errorWriter
-	stats           stats.PrometheusStatsCollector
-	logger          *logrus.Logger
-	auth            pdnsApi.Client
+	config        config.Config
+	ldapZoneAdder ldap.LDAPZoneAdder
+	errorWriter   errorWriter
+	stats         stats.PrometheusStatsCollector
+	logger        *logrus.Logger
+	auth          pdnsApi.Client
 }
 
-func NewAddZone(config config.Config, ldapZoneDeleter LDAPZoneDeleter, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, auth pdnsApi.Client) *AddZone {
-	return &AddZone{config: config, ldapZoneDeleter: ldapZoneDeleter, errorWriter: errorWriter, stats: stats, logger: logger, auth: auth}
+func NewAddZone(config config.Config, ldapZoneAdder ldap.LDAPZoneAdder, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, auth pdnsApi.Client) *AddZone {
+	return &AddZone{config: config, ldapZoneAdder: ldapZoneAdder, errorWriter: errorWriter, stats: stats, logger: logger, auth: auth}
 }
 
 // AddZone creates a new domain, returns the Zone on creation.
@@ -77,7 +78,7 @@ func (s *AddZone) AddZone(w http.ResponseWriter, r *http.Request) {
 
 	// Create zone from LDAP
 	if viper.GetBool("ldap.enabled") {
-		if err := s.ldapZoneDeleter.LDAPDelZone(forwardzone.ZoneTypeZone, input.Name); err != nil {
+		if err := s.ldapZoneAdder.LDAPAddZone(forwardzone.ZoneTypeZone, input.Name); err != nil {
 			s.errorWriter.WriteError(w, r.URL.Path, log.ActionZoneAdd, err)
 			return
 		}

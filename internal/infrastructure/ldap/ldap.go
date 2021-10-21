@@ -19,6 +19,10 @@ type LDAPZoneAdder interface {
 	LDAPAddZone(zoneType, zone string) error
 }
 
+type LDAPZoneDeleter interface {
+	LDAPDelZone(zoneType, zone string) error
+}
+
 type ldapService struct {
 	logger     *logrus.Logger
 	config     config.Config

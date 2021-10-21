@@ -10,6 +10,7 @@ import (
 	"github.com/mixanemca/pdns-api/internal/app/config"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/ldap"
 	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
@@ -18,24 +19,20 @@ import (
 	"golang.org/x/net/context"
 )
 
-type LDAPZoneDeleter interface {
-	LDAPDelZone(zoneType, zone string) error
-}
-
 type errorWriter interface {
 	WriteError(w http.ResponseWriter, urlPath string, action string, err error)
 }
 
 type DeleteZone struct {
 	config          config.Config
-	ldapZoneDeleter LDAPZoneDeleter
+	ldapZoneDeleter ldap.LDAPZoneDeleter
 	errorWriter     errorWriter
 	stats           stats.PrometheusStatsCollector
 	logger          *logrus.Logger
 	auth            pdnsApi.Client
 }
 
-func NewDeleteZone(config config.Config, ldapZoneDeleter LDAPZoneDeleter, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, auth pdnsApi.Client) *DeleteZone {
+func NewDeleteZone(config config.Config, ldapZoneDeleter ldap.LDAPZoneDeleter, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, auth pdnsApi.Client) *DeleteZone {
 	return &DeleteZone{config: config, ldapZoneDeleter: ldapZoneDeleter, errorWriter: errorWriter, stats: stats, logger: logger, auth: auth}
 }
 
