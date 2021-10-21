@@ -35,7 +35,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-type AddForwardZone struct {
+type AddForwardZoneHandler struct {
 	config         config.Config
 	ldapZoneAdder  ldap.LDAPZoneAdder
 	errorWriter    errorWriter
@@ -45,12 +45,12 @@ type AddForwardZone struct {
 	internalClient internalClient
 }
 
-func NewAddForwardZone(config config.Config, ldapZoneAdder ldap.LDAPZoneAdder, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, auth pdnsApi.Client, internalClient internalClient) *AddForwardZone {
-	return &AddForwardZone{config: config, ldapZoneAdder: ldapZoneAdder, errorWriter: errorWriter, stats: stats, logger: logger, auth: auth, internalClient: internalClient}
+func NewAddForwardZone(config config.Config, ldapZoneAdder ldap.LDAPZoneAdder, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, auth pdnsApi.Client, internalClient internalClient) *AddForwardZoneHandler {
+	return &AddForwardZoneHandler{config: config, ldapZoneAdder: ldapZoneAdder, errorWriter: errorWriter, stats: stats, logger: logger, auth: auth, internalClient: internalClient}
 }
 
 // AddForwardZone creates a new forwarding zone
-func (s *AddForwardZone) AddForwardZone(w http.ResponseWriter, r *http.Request) {
+func (s *AddForwardZoneHandler) AddForwardZone(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	serverID := vars["serverID"]
 	zoneType := vars["zoneType"]
