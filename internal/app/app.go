@@ -235,13 +235,12 @@ func (a *app) Run() {
 		ptrRecorder,
 		internalClient,
 	)
-	publicAddForwardZoneHandler := public.NewAddForwardZone(
+	publicAddForwardZoneHandler := public.NewAddForwardZoneHandler(
 		a.config,
 		ldapService,
 		errorWriter,
 		prometheusStats,
 		a.logger,
-		authPowerDNSClient,
 		internalClient,
 	)
 

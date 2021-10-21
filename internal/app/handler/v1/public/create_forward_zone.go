@@ -23,7 +23,6 @@ import (
 	"os"
 
 	"github.com/gorilla/mux"
-	pdnsApi "github.com/mittwald/go-powerdns"
 	"github.com/mixanemca/pdns-api/internal/app/config"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
@@ -41,12 +40,11 @@ type AddForwardZoneHandler struct {
 	errorWriter    errorWriter
 	stats          stats.PrometheusStatsCollector
 	logger         *logrus.Logger
-	auth           pdnsApi.Client
 	internalClient internalClient
 }
 
-func NewAddForwardZone(config config.Config, ldapZoneAdder ldap.LDAPZoneAdder, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, auth pdnsApi.Client, internalClient internalClient) *AddForwardZoneHandler {
-	return &AddForwardZoneHandler{config: config, ldapZoneAdder: ldapZoneAdder, errorWriter: errorWriter, stats: stats, logger: logger, auth: auth, internalClient: internalClient}
+func NewAddForwardZoneHandler(config config.Config, ldapZoneAdder ldap.LDAPZoneAdder, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, internalClient internalClient) *AddForwardZoneHandler {
+	return &AddForwardZoneHandler{config: config, ldapZoneAdder: ldapZoneAdder, errorWriter: errorWriter, stats: stats, logger: logger, internalClient: internalClient}
 }
 
 // AddForwardZone creates a new forwarding zone
