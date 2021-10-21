@@ -15,6 +15,10 @@ const (
 	searchFilter string = `(|(|(&(memberof=cn=%s,ou=%s,ou=%s,ou=dnsaas,ou=groups,dc=avito,dc=ru)(uid=%s))(&(memberof=cn=%s,ou=%s,ou=dnsaas,ou=groups,dc=avito,dc=ru)(uid=%s)))(&(memberof=cn=%s,ou=dnsaas,ou=groups,dc=avito,dc=ru)(uid=%s)))`
 )
 
+type LDAPZoneAdder interface {
+	LDAPAddZone(zoneType, zone string) error
+}
+
 type ldapService struct {
 	logger     *logrus.Logger
 	config     config.Config

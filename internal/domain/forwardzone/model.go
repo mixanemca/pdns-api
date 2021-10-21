@@ -18,6 +18,7 @@ package forwardzone
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"regexp"
@@ -84,6 +85,25 @@ func ParseForwardZoneFile(r io.Reader) (ForwardZones, error) {
 		return fzs, fmt.Errorf("failed to parse forward-zones-file: %v", err)
 	}
 
+	return fzs, nil
+}
+
+// ParseForwardZonesInput parses input data and return err if data invalid.
+func ParseForwardZonesInput(data io.Reader) (ForwardZones, error) {
+	// Parse input
+	fzs := make(ForwardZones, 0)
+	decoder := json.NewDecoder(data)
+
+	err := decoder.Decode(&fzs)
+	if err != nil {
+		return nil, errors.BadRequest.Wrap(err, "failed decode forward zones")
+	}
+	// Check input data fields
+	for _, fz := range fzs {
+		if _, err := ParseForwardZoneLine(fz.String()); err != nil {
+			return nil, err
+		}
+	}
 	return fzs, nil
 }
 
