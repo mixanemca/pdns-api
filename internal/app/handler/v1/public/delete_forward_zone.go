@@ -78,7 +78,7 @@ func (s *DelForwardZonesHandler) DelForwardZones(w http.ResponseWriter, r *http.
 
 	fzsActual, err := forwardzone.ParseForwardZoneFile(file)
 	if err != nil {
-		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, errors.Wrap(err, "parsing forward-zones-file"))
+		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, errors.Wrap(err, "parsing forward-zones-file"))
 		return
 	}
 
