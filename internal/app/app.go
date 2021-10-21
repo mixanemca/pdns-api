@@ -133,7 +133,7 @@ func (a *app) Run() {
 	a.publicRouter.Handle("/metrics", promhttp.Handler())
 
 	flushHandler := private.NewFlushHandler(a.config, prometheusStats, authPowerDNSClient, recursorPowerDNSClient, a.logger)
-	addForwardZoneHandler := private.NewAddForwardZoneHandler(
+	internalAddForwardZoneHandler := private.NewAddForwardZoneHandler(
 		a.config,
 		prometheusStats,
 		authPowerDNSClient,
@@ -173,77 +173,92 @@ func (a *app) Run() {
 	// HTTP internal Handlers
 	a.internalRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/cache/flush", flushHandler.FlushInternal).Methods(http.MethodPut)
-	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", addForwardZoneHandler.AddForwardZonesInternal).Methods(http.MethodPost)
+	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", internalAddForwardZoneHandler.AddForwardZonesInternal).Methods(http.MethodPost)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", deleteForwardZonesHandler.DeleteForwardZonesInternal).Methods(http.MethodDelete)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", updateForwardZonesHandler.UpdateForwardZonesInternal).Methods(http.MethodPatch)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", deleteForwardZoneHandler.DeleteForwardZoneInternal).Methods(http.MethodDelete)
 
+	// Create a service for pdns-api-internal
+	internalService, err := connect.NewService(client.PDNSInternalServiceName, a.consul)
+	if err != nil {
+		a.logger.WithFields(logrus.Fields{
+			"action": log.ActionSystem,
+		}).Fatalf("Cannot create a Consul Connect service %s: %v", client.PDNSInternalServiceName, err)
+	}
+
+	ldapService, err := ldap.NewLDAPService(a.logger, a.config)
+	if err != nil {
+		a.logger.WithFields(logrus.Fields{
+			"action": log.ActionSystem,
+		}).Fatalf("Cannot create a ldap auth client: %v", err)
+	}
+
+	ptrRecorder := zone.NewPTR(a.logger, authPowerDNSClient)
+	internalClient := client.NewClient(
+		a.config,
+		a.consul,
+		internalService,
+	)
+
+	authMiddleware := middleware.NewAuthMiddleware(
+		a.config,
+		errorWriter,
+		prometheusStats,
+		a.logger,
+		ldapService,
+	)
+
+	addZoneHanler := public.NewAddZone(
+		a.config,
+		ldapService,
+		errorWriter,
+		prometheusStats,
+		a.logger,
+		authPowerDNSClient,
+	)
+
+	deleteZoneHanler := public.NewDeleteZone(
+		a.config,
+		ldapService,
+		errorWriter,
+		prometheusStats,
+		a.logger,
+		authPowerDNSClient,
+	)
+
+	patchZoneHanler := public.NewPatchZone(
+		a.config,
+		ldapService,
+		errorWriter,
+		prometheusStats,
+		a.logger,
+		authPowerDNSClient,
+		ptrRecorder,
+		internalClient,
+	)
+	publicAddForwardZoneHandler := public.NewAddForwardZone(
+		a.config,
+		ldapService,
+		errorWriter,
+		prometheusStats,
+		a.logger,
+		authPowerDNSClient,
+		internalClient,
+	)
+
 	if viper.GetBool("ldap.enabled") {
-		// Create a service for pdns-api-internal
-		internalService, err := connect.NewService(client.PDNSInternalServiceName, a.consul)
-		if err != nil {
-			a.logger.WithFields(logrus.Fields{
-				"action": log.ActionSystem,
-			}).Fatalf("Cannot create a Consul Connect service %s: %v", client.PDNSInternalServiceName, err)
-		}
-
-		ldapService, err := ldap.NewLDAPService(a.logger, a.config)
-		if err != nil {
-			a.logger.WithFields(logrus.Fields{
-				"action": log.ActionSystem,
-			}).Fatalf("Cannot create a ldap auth client: %v", err)
-		}
-
-		ptrRecorder := zone.NewPTR(a.logger, authPowerDNSClient)
-		internalClient := client.NewClient(
-			a.config,
-			a.consul,
-			internalService,
-		)
-
-		authMiddleware := middleware.NewAuthMiddleware(
-			a.config,
-			errorWriter,
-			prometheusStats,
-			a.logger,
-			ldapService,
-		)
-
-		addZoneHanler := public.NewAddZone(
-			a.config,
-			ldapService,
-			errorWriter,
-			prometheusStats,
-			a.logger,
-			authPowerDNSClient,
-		)
-
-		deleteZoneHanler := public.NewDeleteZone(
-			a.config,
-			ldapService,
-			errorWriter,
-			prometheusStats,
-			a.logger,
-			authPowerDNSClient,
-		)
-
-		patchZoneHanler := public.NewPatchZone(
-			a.config,
-			ldapService,
-			errorWriter,
-			prometheusStats,
-			a.logger,
-			authPowerDNSClient,
-			ptrRecorder,
-			internalClient,
-		)
-
 		authRouter := a.publicRouter.Methods(http.MethodDelete, http.MethodPatch, http.MethodPost).Subrouter()
 		authRouter.Use(authMiddleware.AuthMiddleware)
 		// HTTP Handlers with Authorization
+		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicAddForwardZoneHandler.AddForwardZone).Methods(http.MethodPost)
 		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}", addZoneHanler.AddZone).Methods(http.MethodPost)
 		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", patchZoneHanler.PatchZone).Methods(http.MethodPatch)
 		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", deleteZoneHanler.DeleteZone).Methods(http.MethodDelete)
+	} else {
+		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicAddForwardZoneHandler.AddForwardZone).Methods(http.MethodPost)
+		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}", addZoneHanler.AddZone).Methods(http.MethodPost)
+		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", patchZoneHanler.PatchZone).Methods(http.MethodPatch)
+		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", deleteZoneHanler.DeleteZone).Methods(http.MethodDelete)
 	}
 
 	// HTTP Server
