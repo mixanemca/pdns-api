@@ -54,3 +54,19 @@ func (s *client) AddZone(serverID, zoneType string, bodyBytes []byte) error {
 
 	return nil
 }
+
+// DelZone Removes zone by name from all available services
+func (s *client) DelZone(serverID, zoneType string, bodyBytes []byte) error {
+	// Make an InternalRequest and send it to all alive services
+	path := fmt.Sprintf("/api/v1/internal/%s/%s", serverID, zoneType)
+	ireq := NewInternalRequest(
+		http.MethodDelete,
+		path,
+		bodyBytes,
+	)
+	if err := s.DoInternalRequest(ireq); err != nil {
+		return errors.Wrap(err, "delete zone")
+	}
+
+	return nil
+}

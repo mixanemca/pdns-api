@@ -34,21 +34,21 @@ import (
 	"github.com/spf13/viper"
 )
 
-type AddForwardZonesHandler struct {
-	config         config.Config
-	ldapZoneAdder  ldap.LDAPZoneAdder
-	errorWriter    errorWriter
-	stats          stats.PrometheusStatsCollector
-	logger         *logrus.Logger
-	internalClient internalClient
+type DelForwardZonesHandler struct {
+	config          config.Config
+	ldapZoneDeleter ldap.LDAPZoneDeleter
+	errorWriter     errorWriter
+	stats           stats.PrometheusStatsCollector
+	logger          *logrus.Logger
+	internalClient  internalClient
 }
 
-func NewAddForwardZonesHandler(config config.Config, ldapZoneAdder ldap.LDAPZoneAdder, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, internalClient internalClient) *AddForwardZonesHandler {
-	return &AddForwardZonesHandler{config: config, ldapZoneAdder: ldapZoneAdder, errorWriter: errorWriter, stats: stats, logger: logger, internalClient: internalClient}
+// NewDelForwardZoneHandler returns new DelForwardZoneHandler
+func NewDelForwardZonesHandler(config config.Config, ldapZoneDeleter ldap.LDAPZoneDeleter, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, internalClient internalClient) *DelForwardZonesHandler {
+	return &DelForwardZonesHandler{config: config, ldapZoneDeleter: ldapZoneDeleter, errorWriter: errorWriter, stats: stats, logger: logger, internalClient: internalClient}
 }
 
-// AddForwardZone creates a new forwarding zone
-func (s *AddForwardZonesHandler) AddForwardZones(w http.ResponseWriter, r *http.Request) {
+func (s *DelForwardZonesHandler) DelForwardZones(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	serverID := vars["serverID"]
 	zoneType := vars["zoneType"]
@@ -63,15 +63,15 @@ func (s *AddForwardZonesHandler) AddForwardZones(w http.ResponseWriter, r *http.
 		data.Write(bodyBytes)
 	}
 
-	fzsInput, err := forwardzone.ParseForwardZonesInput(&data)
+	fzs, err := forwardzone.ParseForwardZonesInput(&data)
 	if err != nil {
-		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, err)
+		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, errors.BadRequest.Wrap(err, "parsing forward-zones"))
 		return
 	}
 
 	file, err := os.OpenFile(forwardzone.ForwardZonesFile, os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
-		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, errors.Wrap(err, "reading forward-zones-file"))
+		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, errors.Wrap(err, "reading forward-zones-file"))
 		return
 	}
 	defer file.Close()
@@ -82,32 +82,37 @@ func (s *AddForwardZonesHandler) AddForwardZones(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Check ForwardZone is already exists
-	for _, fzInput := range fzsInput {
+	// check that fz exists
+	found := 0
+	for _, inputFZ := range fzs {
 		for _, fz := range fzsActual {
-			if network.Canonicalize(fz.Name) == network.Canonicalize(fzInput.Name) {
-				s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, errors.Conflict.Newf("forward-zone %s already exists", fz.Name))
-				return
+			if network.Canonicalize(fz.Name) == network.Canonicalize(inputFZ.Name) {
+				found++
+				break
 			}
 		}
+	}
+	// 404 Not Found
+	if found != len(fzs) {
+		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, errors.NotFound.New("forward-zone not found"))
 	}
 
 	if viper.GetBool("ldap.enabled") {
-		for _, inputFZ := range fzsInput {
-			// Create forward-zone in LDAP
-			if err := s.ldapZoneAdder.LDAPAddZone(forwardzone.ZoneTypeForwardZone, inputFZ.Name); err != nil {
-				s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, err)
+		for _, inputFZ := range fzs {
+			// Delete forward-zone from LDAP
+			if err := s.ldapZoneDeleter.LDAPDelZone(forwardzone.ZoneTypeForwardZone, inputFZ.Name); err != nil {
+				s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, err)
 				return
 			}
 		}
 	}
 
-	if err := s.internalClient.AddZone(serverID, zoneType, bodyBytes); err != nil {
-		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneAdd, err)
+	if err := s.internalClient.DelZone(serverID, zoneType, bodyBytes); err != nil {
+		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, err)
 		return
 	}
 
 	// OK
-	w.WriteHeader(http.StatusCreated)
-	s.stats.CountCall(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method, http.StatusCreated)
+	w.WriteHeader(http.StatusOK)
+	s.stats.CountCall(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
 }

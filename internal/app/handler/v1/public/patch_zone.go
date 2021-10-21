@@ -20,6 +20,7 @@ import (
 type internalClient interface {
 	FlushAllCache(serverID, name string) error
 	AddZone(serverID, zoneType string, bodyBytes []byte) error
+	DelZone(serverID, zoneType string, bodyBytes []byte) error
 }
 
 type ptrrecorder interface {

@@ -235,7 +235,15 @@ func (a *app) Run() {
 		ptrRecorder,
 		internalClient,
 	)
-	publicAddForwardZoneHandler := public.NewAddForwardZoneHandler(
+	publicAddForwardZonesHandler := public.NewAddForwardZonesHandler(
+		a.config,
+		ldapService,
+		errorWriter,
+		prometheusStats,
+		a.logger,
+		internalClient,
+	)
+	publicDelForwardZonesHandler := public.NewDelForwardZonesHandler(
 		a.config,
 		ldapService,
 		errorWriter,
@@ -248,12 +256,14 @@ func (a *app) Run() {
 		authRouter := a.publicRouter.Methods(http.MethodDelete, http.MethodPatch, http.MethodPost).Subrouter()
 		authRouter.Use(authMiddleware.AuthMiddleware)
 		// HTTP Handlers with Authorization
-		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicAddForwardZoneHandler.AddForwardZone).Methods(http.MethodPost)
+		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicAddForwardZonesHandler.AddForwardZones).Methods(http.MethodPost)
+		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicDelForwardZonesHandler.DelForwardZones).Methods(http.MethodDelete)
 		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}", addZoneHanler.AddZone).Methods(http.MethodPost)
 		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", patchZoneHanler.PatchZone).Methods(http.MethodPatch)
 		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", deleteZoneHanler.DeleteZone).Methods(http.MethodDelete)
 	} else {
-		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicAddForwardZoneHandler.AddForwardZone).Methods(http.MethodPost)
+		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicAddForwardZonesHandler.AddForwardZones).Methods(http.MethodPost)
+		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicDelForwardZonesHandler.DelForwardZones).Methods(http.MethodDelete)
 		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}", addZoneHanler.AddZone).Methods(http.MethodPost)
 		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", patchZoneHanler.PatchZone).Methods(http.MethodPatch)
 		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", deleteZoneHanler.DeleteZone).Methods(http.MethodDelete)
