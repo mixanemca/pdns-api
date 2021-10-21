@@ -21,16 +21,18 @@ import (
 )
 
 type Config struct {
-	Role        string       `mapstructure:"role"`
-	DataCenter  string       `mapstructure:"datacenter"`
-	Environment string       `mapstructure:"environment"`
-	PublicHTTP  HTTPConfig   `mapstructure:"public-http"`
-	Log         LogConfig    `mapstructure:"log"`
-	PDNS        PDNSConfig   `mapstructure:"pdns"`
-	Consul      ConsulConfig `mapstructure:"consul"`
-	LDAP        LDAPConfig   `mapstructure:"ldap"`
-	Version     string
-	Build       string
+	Role           string         `mapstructure:"role"`
+	DataCenter     string         `mapstructure:"datacenter"`
+	Environment    string         `mapstructure:"environment"`
+	PublicHTTP     HTTPConfig     `mapstructure:"public-http"`
+	Log            LogConfig      `mapstructure:"log"`
+	PDNS           PDNSConfig     `mapstructure:"pdns"`
+	Consul         ConsulConfig   `mapstructure:"consul"`
+	LDAP           LDAPConfig     `mapstructure:"ldap"`
+	Internal       InternalConfig `mapstructure:"internal"`
+	BackendTimeout int            `mapstructure:"backend-timeout"`
+	Version        string
+	Build          string
 }
 
 type HTTPConfig struct {
@@ -64,6 +66,12 @@ type AuthConfig struct {
 	BaseURL string `mapstructure:"base-url"`
 	ApiKey  string `mapstructure:"api-key"`
 	Timeout int    `mapstructure:"timeout"`
+}
+
+// InternalConfig represents internal API settings in config
+type InternalConfig struct {
+	ListenAddress string `mapstructure:"listen-address"`
+	ListenPort    int    `mapstructure:"listen-port"`
 }
 
 // LDAPConfig represents LDAP settings in config

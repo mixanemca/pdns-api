@@ -14,24 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package forwardzone
+package zone
 
+// todo move to config
 const (
-	ZoneTypeZone        = "zones"
-	ZoneTypeForwardZone = "forward-zones"
-)
-
-const (
-	cnTypeReplace = "replace"
-	cnTypeDelete  = "delete"
-)
-
-// TODO: move to config
-const (
-	ForwardZonesFile        = "/etc/powerdns/forward-zones.conf"
-	ForwardZonesConsulKVKey = "forward-zones"
-)
-
-const (
-	DefaultMaxResults string = "10"
+	LocalNameserver  string = "127.0.0.1:5353"
+	LocalReverseZone string = "10.in-addr.arpa"
 )

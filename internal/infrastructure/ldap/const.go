@@ -1,6 +1,6 @@
 package ldap
 
 const (
-	cnTypeReplace = "replace"
-	cnTypeDelete  = "delete"
+	CNTypeReplace = "replace"
+	CNTypeDelete  = "delete"
 )
