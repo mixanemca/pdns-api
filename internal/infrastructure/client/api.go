@@ -55,6 +55,22 @@ func (s *client) AddZone(serverID, zoneType string, bodyBytes []byte) error {
 	return nil
 }
 
+// PatchZone Update zone by name from all available services
+func (s *client) PatchZone(serverID, zoneType, zoneID string, bodyBytes []byte) error {
+	// Make an InternalRequest and send it to all alive services
+	path := fmt.Sprintf("/api/v1/internal/%s/%s/%s", serverID, zoneType, zoneID)
+	ireq := NewInternalRequest(
+		http.MethodPatch,
+		path,
+		bodyBytes,
+	)
+	if err := s.DoInternalRequest(ireq); err != nil {
+		return errors.Wrap(err, "update zone")
+	}
+
+	return nil
+}
+
 // DelZone Removes zone by name from all available services
 func (s *client) DelZone(serverID, zoneType string, bodyBytes []byte) error {
 	// Make an InternalRequest and send it to all alive services
