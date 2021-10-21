@@ -19,6 +19,7 @@ import (
 
 type internalClient interface {
 	FlushAllCache(serverID, name string) error
+	AddZone(serverID, zoneType string, bodyBytes []byte) error
 }
 
 type ptrrecorder interface {
@@ -118,5 +119,5 @@ func (s *PatchZone) PatchZone(w http.ResponseWriter, r *http.Request) {
 		"action": log.ActionZoneDelete,
 		"zone":   zoneID,
 	}).Infof("Zone %s was deleted", zoneID)
-	s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusNoContent)
+	s.stats.CountCall(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method, http.StatusNoContent)
 }
