@@ -55,14 +55,46 @@ func (s *client) AddZone(serverID, zoneType string, bodyBytes []byte) error {
 	return nil
 }
 
-// DelZone Removes zone by name from all available services
-func (s *client) DelZone(serverID, zoneType string, bodyBytes []byte) error {
+// PatchZone Update zone by name from all available services
+func (s *client) PatchZone(serverID, zoneType, zoneID string, bodyBytes []byte) error {
+	// Make an InternalRequest and send it to all alive services
+	path := fmt.Sprintf("/api/v1/internal/%s/%s/%s", serverID, zoneType, zoneID)
+	ireq := NewInternalRequest(
+		http.MethodPatch,
+		path,
+		bodyBytes,
+	)
+	if err := s.DoInternalRequest(ireq); err != nil {
+		return errors.Wrap(err, "update zone")
+	}
+
+	return nil
+}
+
+// DelZones Removes zones by zone type from all available services
+func (s *client) DelZones(serverID, zoneType string, bodyBytes []byte) error {
 	// Make an InternalRequest and send it to all alive services
 	path := fmt.Sprintf("/api/v1/internal/%s/%s", serverID, zoneType)
 	ireq := NewInternalRequest(
 		http.MethodDelete,
 		path,
 		bodyBytes,
+	)
+	if err := s.DoInternalRequest(ireq); err != nil {
+		return errors.Wrap(err, "delete zone")
+	}
+
+	return nil
+}
+
+// DelZone Removes zone by zone id from all available services
+func (s *client) DelZone(serverID, zoneType string, zoneID string) error {
+	// Make an InternalRequest and send it to all alive services
+	path := fmt.Sprintf("/api/v1/internal/%s/%s/%s", serverID, zoneType, zoneID)
+	ireq := NewInternalRequest(
+		http.MethodDelete,
+		path,
+		nil,
 	)
 	if err := s.DoInternalRequest(ireq); err != nil {
 		return errors.Wrap(err, "delete zone")

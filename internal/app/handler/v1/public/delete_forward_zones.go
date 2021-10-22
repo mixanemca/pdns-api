@@ -17,6 +17,8 @@ limitations under the License.
 package public
 
 import (
+	"bytes"
+	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -32,7 +34,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-type DelForwardZoneHandler struct {
+type DelForwardZonesHandler struct {
 	config          config.Config
 	ldapZoneDeleter ldap.LDAPZoneDeleter
 	errorWriter     errorWriter
@@ -42,18 +44,30 @@ type DelForwardZoneHandler struct {
 }
 
 // NewDelForwardZoneHandler returns new DelForwardZoneHandler
-func NewDelForwardZoneHandler(config config.Config, ldapZoneDeleter ldap.LDAPZoneDeleter, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, internalClient internalClient) *DelForwardZoneHandler {
-	return &DelForwardZoneHandler{config: config, ldapZoneDeleter: ldapZoneDeleter, errorWriter: errorWriter, stats: stats, logger: logger, internalClient: internalClient}
+func NewDelForwardZonesHandler(config config.Config, ldapZoneDeleter ldap.LDAPZoneDeleter, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, internalClient internalClient) *DelForwardZonesHandler {
+	return &DelForwardZonesHandler{config: config, ldapZoneDeleter: ldapZoneDeleter, errorWriter: errorWriter, stats: stats, logger: logger, internalClient: internalClient}
 }
 
-func (s *DelForwardZoneHandler) DelForwardZone(w http.ResponseWriter, r *http.Request) {
+func (s *DelForwardZonesHandler) DelForwardZones(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	serverID := vars["serverID"]
-	zoneID := vars["zoneID"]
 	zoneType := vars["zoneType"]
 
 	timer := s.stats.GetLabeledResponseTimePeersHistogramTimer(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method)
 	defer timer.ObserveDuration()
+
+	var bodyBytes []byte
+	var data bytes.Buffer
+	if r.Body != nil {
+		bodyBytes, _ = ioutil.ReadAll(r.Body)
+		data.Write(bodyBytes)
+	}
+
+	fzs, err := forwardzone.ParseForwardZonesInput(&data)
+	if err != nil {
+		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, errors.BadRequest.Wrap(err, "parsing forward-zones"))
+		return
+	}
 
 	file, err := os.OpenFile(forwardzone.ForwardZonesFile, os.O_RDWR|os.O_APPEND, 0644)
 	if err != nil {
@@ -69,27 +83,32 @@ func (s *DelForwardZoneHandler) DelForwardZone(w http.ResponseWriter, r *http.Re
 	}
 
 	// check that fz exists
-	found := false
-	for _, inputFZ := range fzsActual {
-		if network.Canonicalize(zoneID) == network.Canonicalize(inputFZ.Name) {
-			found = true
-			break
+	found := 0
+	for _, inputFZ := range fzs {
+		for _, fz := range fzsActual {
+			if network.Canonicalize(fz.Name) == network.Canonicalize(inputFZ.Name) {
+				found++
+				break
+			}
 		}
 	}
 	// 404 Not Found
-	if !found {
+	if found != len(fzs) {
 		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, errors.NotFound.New("forward-zone not found"))
 		return
 	}
 
 	if viper.GetBool("ldap.enabled") {
-		if err := s.ldapZoneDeleter.LDAPDelZone(forwardzone.ZoneTypeForwardZone, zoneID); err != nil {
-			s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, err)
-			return
+		for _, inputFZ := range fzs {
+			// Delete forward-zone from LDAP
+			if err := s.ldapZoneDeleter.LDAPDelZone(forwardzone.ZoneTypeForwardZone, inputFZ.Name); err != nil {
+				s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, err)
+				return
+			}
 		}
 	}
 
-	if err := s.internalClient.DelZone(serverID, zoneType, zoneID); err != nil {
+	if err := s.internalClient.DelZones(serverID, zoneType, bodyBytes); err != nil {
 		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, err)
 		return
 	}
