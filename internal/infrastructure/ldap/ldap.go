@@ -9,6 +9,7 @@ import (
 	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -30,8 +31,11 @@ type ldapService struct {
 }
 
 func NewLDAPService(logger *logrus.Logger, config config.Config) (*ldapService, error) {
+	var err error
 	s := &ldapService{logger: logger, config: config}
-	err := s.LDAPInit()
+	if viper.GetBool("ldap.enabled") {
+		err = s.LDAPInit()
+	}
 	return s, err
 }
 
