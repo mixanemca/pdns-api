@@ -89,7 +89,7 @@ func (s *DelForwardZoneHandler) DelForwardZone(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	if err := s.internalClient.DelZone(serverID, zoneType, nil); err != nil {
+	if err := s.internalClient.DelZone(serverID, zoneType, zoneID); err != nil {
 		s.errorWriter.WriteError(w, r.URL.Path, log.ActionForwardZoneDelete, err)
 		return
 	}

@@ -20,7 +20,8 @@ import (
 type internalClient interface {
 	FlushAllCache(serverID, name string) error
 	AddZone(serverID, zoneType string, bodyBytes []byte) error
-	DelZone(serverID, zoneType string, bodyBytes []byte) error
+	DelZones(serverID, zoneType string, bodyBytes []byte) error
+	DelZone(serverID, zoneType, zoneID string) error
 	PatchZone(serverID, zoneType, zoneID string, bodyBytes []byte) error
 }
 
