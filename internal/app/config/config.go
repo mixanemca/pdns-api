@@ -20,6 +20,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	ROLE_WORKER = "worker"
+	ROLE_AUTH   = "authority"
+)
+
 type Config struct {
 	Role           string         `mapstructure:"role"`
 	DataCenter     string         `mapstructure:"datacenter"`
@@ -31,6 +36,7 @@ type Config struct {
 	LDAP           LDAPConfig     `mapstructure:"ldap"`
 	Internal       InternalConfig `mapstructure:"internal"`
 	BackendTimeout int            `mapstructure:"backend-timeout"`
+	ServerRole     string         `mapstructure:"server-role"`
 	Version        string
 	Build          string
 }
@@ -98,6 +104,7 @@ func Init(version, build string) (*Config, error) {
 
 	// Set configuration defaults
 	viper.SetDefault("datacenter", "dataspace")
+	viper.SetDefault("server-role", ROLE_AUTH)
 	viper.SetDefault("environment", "dev")
 	viper.SetDefault("public-http.listen-address", "127.0.0.1")
 	viper.SetDefault("public-http.listen-port", 8080)

@@ -17,8 +17,9 @@ limitations under the License.
 package main
 
 import (
-	"github.com/mixanemca/pdns-api/internal/app"
+	"github.com/mixanemca/pdns-api/internal/app/api"
 	"github.com/mixanemca/pdns-api/internal/app/config"
+	"github.com/mixanemca/pdns-api/internal/app/worker"
 	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
 	"github.com/sirupsen/logrus"
 )
@@ -41,7 +42,13 @@ func main() {
 
 	logger := log.NewLogger(cfg.Log.File, cfg.Log.Level)
 
-	pdnsApp := app.NewApp(*cfg, logger)
-
-	pdnsApp.Run()
+	if cfg.Role == config.ROLE_WORKER {
+		workerApp := worker.NewApp(*cfg, logger)
+		workerApp.Run()
+	} else {
+		apiApp := api.NewApp(*cfg, logger)
+		workerApp := worker.NewApp(*cfg, logger)
+		workerApp.Run()
+		apiApp.Run()
+	}
 }
