@@ -26,7 +26,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/connect"
 	"github.com/mixanemca/pdns-api/internal/app/api/handler/v1"
-	v12 "github.com/mixanemca/pdns-api/internal/app/common/handler/v1"
+	commonV1 "github.com/mixanemca/pdns-api/internal/app/common/handler/v1"
 	"github.com/mixanemca/pdns-api/internal/app/middleware"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone/storage"
@@ -98,7 +98,7 @@ func (a *app) Run() {
 
 	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
 
-	healthHandler := v12.NewHealthHandler(a.config)
+	healthHandler := commonV1.NewHealthHandler(a.config)
 	listServersHandler := v1.NewListServersHandler(a.config, prometheusStats, authPowerDNSClient)
 	listServerHandler := v1.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
 	searchDataHandler := v1.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)

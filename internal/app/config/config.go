@@ -22,7 +22,7 @@ import (
 
 const (
 	ROLE_WORKER = "worker"
-	ROLE_AUTH   = "authority"
+	ROLE_API    = "api"
 )
 
 type Config struct {
@@ -104,7 +104,7 @@ func Init(version, build string) (*Config, error) {
 
 	// Set configuration defaults
 	viper.SetDefault("datacenter", "dataspace")
-	viper.SetDefault("server-role", ROLE_AUTH)
+	viper.SetDefault("server-role", ROLE_API)
 	viper.SetDefault("environment", "dev")
 	viper.SetDefault("public-http.listen-address", "127.0.0.1")
 	viper.SetDefault("public-http.listen-port", 8080)
