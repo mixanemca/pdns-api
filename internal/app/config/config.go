@@ -36,7 +36,6 @@ type Config struct {
 	LDAP           LDAPConfig     `mapstructure:"ldap"`
 	Internal       InternalConfig `mapstructure:"internal"`
 	BackendTimeout int            `mapstructure:"backend-timeout"`
-	ServerRole     string         `mapstructure:"server-role"`
 	Version        string
 	Build          string
 }
