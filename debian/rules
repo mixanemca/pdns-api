@@ -3,8 +3,65 @@
 
 include /usr/share/dpkg/default.mk
 
+export GOPATH := $(CURDIR)/_build
+export GOCACHE := $(GOPATH)/go-build
+export GO111MODULE := on
+export CGO_ENABLED := off
+export DH_GOPKG := github.com/mixanemca/pdns-api
+
+# Package names
+CMD_PKG                     := github.com/mixanemca/pdns-api/cmd/pdns-api
+INTERNAL_APP_PKG            := github.com/mixanemca/pdns-api/internal/app
+INTERNAL_DOMAIN_PKG         := github.com/mixanemca/pdns-api/internal/domain
+INTERNAL_INFRASTRUCTURE_PKG := github.com/mixanemca/pdns-api/internal/infrastructure
+
 # Uncomment this to turn on verbose mode.
 #export DH_VERBOSE=1
 
 %:
-	dh $@ --buildsystem=golang
+	dh $@ --builddirectory=_build --buildsystem=golang --with=golang
+
+#override_dh_golang:
+#	DH_GOLANG_BUILDPKG="$(INTERNAL_APP_PKG)/..." \
+#	 dh_golang -O--buildsystem=golang -O--builddirectory=_build
+
+override_dh_clean:
+	dh_clean
+	-find */vendor -mindepth 1 -type d -empty -delete -printf 'removed %p\n'
+	$(RM) -rf ./vendor ./_build
+	$(RM) ../*.buildinfo
+	$(RM) ../*.changes
+	$(RM) ../*.deb
+
+override_dh_auto_configure:
+	mkdir _build
+	go mod vendor
+## dh_auto_configure symlinks dirs from "/usr/share/gocode/src" into
+## $(GOPATH) unless folders already exist there in which case files
+## are copied. Pre-making directories allows us to use debhelper to
+## create proper GOPATH source tree yet have certain directories writable
+## even if they are provided by already installed package.
+	mkdir -pv $(GOPATH)/src/$(CMD_PKG)
+	mkdir -pv $(GOPATH)/src/$(INTERNAL_APP_PKG)
+	mkdir -pv $(GOPATH)/src/$(INTERNAL_DOMAIN_PKG)
+	mkdir -pv $(GOPATH)/src/$(INTERNAL_INFRASTRUCTURE_PKG)
+
+## Prepare builddirectory but throw away sourcedirectory.
+	DH_GOPKG="__IGNORE__" dh_auto_configure
+
+## Each package must be removed from working tree first, in case some
+## of the packages that we are going to build are already installed.
+## This is also useful for building in unclean environment.
+##
+## This is _necessary_ to avoid merging packages that we build with
+## pre-installed packages. See #827226 for details.
+## Debhelper knows only about "main" DH_GOPKG package but we build several
+## and we have to ensure that build tree is properly prepared.
+	$(RM) -r                       $(GOPATH)/src/$(CMD_PKG)
+	cp -ra cmd                     $(GOPATH)/src/$(CMD_PKG)
+	$(RM) -r                       $(GOPATH)/src/$(INTERNAL_APP_PKG)
+	cp -ra internal/app            $(GOPATH)/src/$(INTERNAL_APP_PKG)
+	$(RM) -r                       $(GOPATH)/src/$(INTERNAL_DOMAIN_PKG)
+	cp -ra internal/domain         $(GOPATH)/src/$(INTERNAL_DOMAIN_PKG)
+	$(RM) -r                       $(GOPATH)/src/$(INTERNAL_INFRASTRUCTURE_PKG)
+	cp -ra internal/infrastructure $(GOPATH)/src/$(INTERNAL_INFRASTRUCTURE_PKG)
