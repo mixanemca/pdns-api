@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package app
+package api
 
 import (
 	"net"
@@ -25,9 +25,8 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/connect"
-	"github.com/mixanemca/pdns-api/internal/app/handler/v1/common"
-	"github.com/mixanemca/pdns-api/internal/app/handler/v1/private"
-	"github.com/mixanemca/pdns-api/internal/app/handler/v1/public"
+	"github.com/mixanemca/pdns-api/internal/app/api/handler/v1"
+	commonV1 "github.com/mixanemca/pdns-api/internal/app/common/handler/v1"
 	"github.com/mixanemca/pdns-api/internal/app/middleware"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone/storage"
@@ -81,16 +80,6 @@ func (a *app) Run() {
 		}).Fatalf("Cannot create a PowerDNS Authoritative API client: %v", err)
 	}
 
-	recursorPowerDNSClient, err := pdnsApi.New(
-		pdnsApi.WithBaseURL(a.config.PDNS.RecursorConfig.BaseURL),
-		pdnsApi.WithAPIKeyAuthentication(a.config.PDNS.RecursorConfig.ApiKey),
-	)
-	if err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"action": log.ActionSystem,
-		}).Fatalf("Cannot create a PowerDNS Authoritative API client: %v", err)
-	}
-
 	_, err = consul.NewConsulClient(a.config)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
@@ -108,15 +97,14 @@ func (a *app) Run() {
 	prometheusStats := a.initStats()
 
 	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
-	compositeFZStorage := a.createCompositeStorage()
 
-	healthHandler := common.NewHealthHandler(a.config)
-	listServersHandler := public.NewListServersHandler(a.config, prometheusStats, authPowerDNSClient)
-	listServerHandler := public.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
-	searchDataHandler := public.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
-	forwardZonesHandler := public.NewForwardZonesHandler(a.config, prometheusStats, authPowerDNSClient)
-	zonesHandler := public.NewZonesHandler(a.config, prometheusStats, authPowerDNSClient)
-	versionHandler := public.NewVersionHandler(a.config, prometheusStats)
+	healthHandler := commonV1.NewHealthHandler(a.config)
+	listServersHandler := v1.NewListServersHandler(a.config, prometheusStats, authPowerDNSClient)
+	listServerHandler := v1.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
+	searchDataHandler := v1.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
+	forwardZonesHandler := v1.NewForwardZonesHandler(a.config, prometheusStats, authPowerDNSClient)
+	zonesHandler := v1.NewZonesHandler(a.config, prometheusStats, authPowerDNSClient)
+	versionHandler := v1.NewVersionHandler(a.config, prometheusStats)
 
 	// HTTP public Handlers
 	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
@@ -131,52 +119,6 @@ func (a *app) Run() {
 
 	// Prometheus metrics
 	a.publicRouter.Handle("/metrics", promhttp.Handler())
-
-	flushHandler := private.NewFlushHandler(a.config, prometheusStats, authPowerDNSClient, recursorPowerDNSClient, a.logger)
-	internalAddForwardZoneHandler := private.NewAddForwardZoneHandler(
-		a.config,
-		prometheusStats,
-		authPowerDNSClient,
-		recursorPowerDNSClient,
-		a.logger,
-		errorWriter,
-		compositeFZStorage,
-	)
-	deleteForwardZoneHandler := private.NewDeleteForwardZoneHandler(
-		a.config,
-		prometheusStats,
-		authPowerDNSClient,
-		recursorPowerDNSClient,
-		a.logger,
-		errorWriter,
-		compositeFZStorage,
-	)
-	deleteForwardZonesHandler := private.NewDeleteForwardZonesHandler(
-		a.config,
-		prometheusStats,
-		authPowerDNSClient,
-		recursorPowerDNSClient,
-		a.logger,
-		errorWriter,
-		compositeFZStorage,
-	)
-	updateForwardZonesHandler := private.NewUpdateForwardZoneHandler(
-		a.config,
-		prometheusStats,
-		authPowerDNSClient,
-		recursorPowerDNSClient,
-		a.logger,
-		errorWriter,
-		compositeFZStorage,
-	)
-
-	// HTTP internal Handlers
-	a.internalRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
-	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/cache/flush", flushHandler.FlushInternal).Methods(http.MethodPut)
-	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", internalAddForwardZoneHandler.AddForwardZonesInternal).Methods(http.MethodPost)
-	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", deleteForwardZonesHandler.DeleteForwardZonesInternal).Methods(http.MethodDelete)
-	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", updateForwardZonesHandler.UpdateForwardZonesInternal).Methods(http.MethodPatch)
-	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", deleteForwardZoneHandler.DeleteForwardZoneInternal).Methods(http.MethodDelete)
 
 	// Create a service for pdns-api-internal
 	internalService, err := connect.NewService(client.PDNSInternalServiceName, a.consul)
@@ -208,7 +150,7 @@ func (a *app) Run() {
 		ldapService,
 	)
 
-	addZoneHanler := public.NewAddZone(
+	addZoneHanler := v1.NewAddZone(
 		a.config,
 		ldapService,
 		errorWriter,
@@ -217,7 +159,7 @@ func (a *app) Run() {
 		authPowerDNSClient,
 	)
 
-	deleteZoneHanler := public.NewDeleteZone(
+	deleteZoneHanler := v1.NewDeleteZone(
 		a.config,
 		ldapService,
 		errorWriter,
@@ -226,7 +168,7 @@ func (a *app) Run() {
 		authPowerDNSClient,
 	)
 
-	patchZoneHanler := public.NewPatchZone(
+	patchZoneHanler := v1.NewPatchZone(
 		a.config,
 		errorWriter,
 		prometheusStats,
@@ -235,7 +177,7 @@ func (a *app) Run() {
 		ptrRecorder,
 		internalClient,
 	)
-	publicAddForwardZonesHandler := public.NewAddForwardZonesHandler(
+	publicAddForwardZonesHandler := v1.NewAddForwardZonesHandler(
 		a.config,
 		ldapService,
 		errorWriter,
@@ -243,7 +185,7 @@ func (a *app) Run() {
 		a.logger,
 		internalClient,
 	)
-	publicDelForwardZonesHandler := public.NewDelForwardZonesHandler(
+	publicDelForwardZonesHandler := v1.NewDelForwardZonesHandler(
 		a.config,
 		ldapService,
 		errorWriter,
@@ -251,7 +193,7 @@ func (a *app) Run() {
 		a.logger,
 		internalClient,
 	)
-	publicDelForwardZoneHandler := public.NewDelForwardZoneHandler(
+	publicDelForwardZoneHandler := v1.NewDelForwardZoneHandler(
 		a.config,
 		ldapService,
 		errorWriter,
@@ -259,7 +201,7 @@ func (a *app) Run() {
 		a.logger,
 		internalClient,
 	)
-	publicPatchForwardZoneHandler := public.NewPatchForwardZoneHandler(
+	publicPatchForwardZoneHandler := v1.NewPatchForwardZoneHandler(
 		a.config,
 		errorWriter,
 		prometheusStats,
@@ -350,16 +292,6 @@ func (a *app) initStats() *stats.PrometheusStats {
 		},
 	)
 
-	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="0.1"} 1
-	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="0.25"} 1
-	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="0.5"} 1
-	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="1"} 1
-	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="2.5"} 1
-	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="5"} 1
-	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="10"} 1
-	// pdns_api_response_time_s_bucket{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s.",le="+Inf"} 1
-	// pdns_api_response_time_s_sum{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s."} 0.000125775
-	// pdns_api_response_time_s_count{node="pdns-dev01",method="GET",path="/api/v1/servers/localhost/forward-zones/omega.k8s."} 1
 	pdnsResponseTimeHistogram := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "pdns_api_response_time_s",

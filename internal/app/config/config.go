@@ -20,6 +20,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	ROLE_WORKER = "worker"
+	ROLE_API    = "api"
+)
+
 type Config struct {
 	Role           string         `mapstructure:"role"`
 	DataCenter     string         `mapstructure:"datacenter"`
@@ -98,6 +103,7 @@ func Init(version, build string) (*Config, error) {
 
 	// Set configuration defaults
 	viper.SetDefault("datacenter", "dataspace")
+	viper.SetDefault("server-role", ROLE_API)
 	viper.SetDefault("environment", "dev")
 	viper.SetDefault("public-http.listen-address", "127.0.0.1")
 	viper.SetDefault("public-http.listen-port", 8080)
