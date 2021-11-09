@@ -27,9 +27,25 @@ run: test
 test:
 	@go test -v ./...
 
-## clean: Cleanup.
+## clean: Cleanup binary.
 clean:
-	@rm -f bin/$(PROJECTNAME)
+	-@rm -f bin/$(PROJECTNAME)
+
+## clean-deb: Cleanup deb package.
+clean-deb:
+	-@rm -f bin/*.{buildinfo,changes,deb}
+
+## clean-docker: Cleanup Docker container and image.
+clean-docker:
+	-@docker rm -f $(PROJECTNAME)-package &>/dev/null
+	-@docker rmi $(PROJECTNAME)-builder:$(VERSION) &>/dev/null
+
+## deb: Build deb package in Docker
+deb: clean-deb clean-docker
+	@docker build -t $(PROJECTNAME)-builder:$(VERSION) -f Dockerfile .
+	@docker run --rm -ti -v $(PWD)/bin:/tmp/packages --name $(PROJECTNAME)-package $(PROJECTNAME)-builder:$(VERSION) /bin/cp /usr/src/$(PROJECTNAME)_$(VERSION)_amd64.deb /tmp/packages/
+	@docker run --rm -ti -v $(PWD)/bin:/tmp/packages --name $(PROJECTNAME)-package $(PROJECTNAME)-builder:$(VERSION) /bin/cp /usr/src/$(PROJECTNAME)_$(VERSION)_amd64.changes /tmp/packages/
+	@docker run --rm -ti -v $(PWD)/bin:/tmp/packages --name $(PROJECTNAME)-package $(PROJECTNAME)-builder:$(VERSION) /bin/cp /usr/src/$(PROJECTNAME)_$(VERSION)_amd64.buildinfo /tmp/packages/
 
 ## help: Show this message.
 help: Makefile
