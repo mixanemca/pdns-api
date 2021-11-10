@@ -1,0 +1,15 @@
+[Unit]
+Description=API server for PowerDNS
+After=network.target
+After=consul.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/pdns-api
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

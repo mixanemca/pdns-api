@@ -1,1 +1,2 @@
 etc/pdns-api
+var/log/pdns-api

@@ -8,9 +8,10 @@ export GOCACHE := $(GOPATH)/go-build
 export GO111MODULE := on
 export CGO_ENABLED := off
 export DH_GOPKG := github.com/mixanemca/pdns-api
+export DH_GOLANG_INSTALL_ALL := 1
 
 # Package names
-CMD_PKG                     := github.com/mixanemca/pdns-api/cmd/pdns-api
+CMD_PKG                     := github.com/mixanemca/pdns-api/cmd
 INTERNAL_APP_PKG            := github.com/mixanemca/pdns-api/internal/app
 INTERNAL_DOMAIN_PKG         := github.com/mixanemca/pdns-api/internal/domain
 INTERNAL_INFRASTRUCTURE_PKG := github.com/mixanemca/pdns-api/internal/infrastructure
@@ -21,9 +22,9 @@ INTERNAL_INFRASTRUCTURE_PKG := github.com/mixanemca/pdns-api/internal/infrastruc
 %:
 	dh $@ --builddirectory=_build --buildsystem=golang --with=golang
 
-#override_dh_golang:
-#	DH_GOLANG_BUILDPKG="$(INTERNAL_APP_PKG)/..." \
-#	 dh_golang -O--buildsystem=golang -O--builddirectory=_build
+override_dh_golang:
+	DH_GOLANG_BUILDPKG="$(CMD_PKG)/... $(INTERNAL_APP_PKG)/... $(INTERNAL_DOMAIN_PKG)/... $(INTERNAL_INFRASTRUCTURE_PKG)/..." \
+	 dh_golang -O--buildsystem=golang -O--builddirectory=_build
 
 override_dh_clean:
 	dh_clean
@@ -65,3 +66,10 @@ override_dh_auto_configure:
 	cp -ra internal/domain         $(GOPATH)/src/$(INTERNAL_DOMAIN_PKG)
 	$(RM) -r                       $(GOPATH)/src/$(INTERNAL_INFRASTRUCTURE_PKG)
 	cp -ra internal/infrastructure $(GOPATH)/src/$(INTERNAL_INFRASTRUCTURE_PKG)
+
+override_dh_auto_build:
+	dh_auto_build -v
+	#go build -o bin/pdns-api cmd/pdns-api/main.go
+
+override_dh_auto_install:
+	dh_auto_install -- --no-source
