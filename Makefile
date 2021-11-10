@@ -28,7 +28,7 @@ test:
 	@go test -v ./...
 
 ## clean: Cleanup binary.
-clean:
+clean: clean-docker clean-deb
 	-@rm -f bin/$(PROJECTNAME)
 
 ## clean-deb: Cleanup deb package.
