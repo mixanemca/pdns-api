@@ -1,0 +1,27 @@
+Source: pdns-api
+Section: admin
+Priority: optional
+Standards-Version: 4.6.0
+Maintainer: Michael Bruskov <mixanemca@yandex.ru>
+Build-Depends: debhelper-compat (=12), dh-golang (>= 1.14~),
+    golang-any (>= 2:1.10~),
+    golang-github-go-ldap-ldap-dev,
+    golang-github-gorilla-mux-dev (>= 1.1-4~),
+    golang-github-hashicorp-consul-dev,
+    golang-github-hashicorp-go-version-dev,
+    golang-github-mitchellh-go-testing-interface-dev,
+    golang-github-mitchellh-hashstructure-dev,
+    golang-github-spf13-viper-dev,
+    golang-github-spf13-pflag-dev (>= 1.0.3-1~),
+    git
+Homepage: https://github.com/mixanemca/pdns-api/
+Vcs-Browser: https://github.com/mixanemca/pdns-api.git
+Vcs-Git: https://github.com/mixanemca/pdns-api.git
+Rules-Requires-Root: no
+
+Package: pdns-api
+Architecture: linux-any
+Pre-Depends: ${misc:Pre-Depends}
+Depends: ${misc:Depends} ,${shlibs:Depends}
+Built-Using: ${libc:Built-Using}, ${misc:Built-Using}
+Description: pdns-api
