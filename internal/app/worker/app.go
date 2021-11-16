@@ -24,6 +24,7 @@ import (
 	"syscall"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/consul/connect"
 	pdnsApi "github.com/mittwald/go-powerdns"
 	v12 "github.com/mixanemca/pdns-api/internal/app/common/handler/v1"
 	v1 "github.com/mixanemca/pdns-api/internal/app/worker/handler/v1"
@@ -42,11 +43,12 @@ import (
 )
 
 type app struct {
-	config         config.Config
-	consul         *api.Client
-	logger         *logrus.Logger
-	internalRouter *mux.Router
-	publicRouter   *mux.Router
+	config          config.Config
+	consul          *api.Client
+	logger          *logrus.Logger
+	internalRouter  *mux.Router
+	publicRouter    *mux.Router
+	internalService *connect.Service
 }
 
 func NewApp(cfg config.Config, logger *logrus.Logger) *app {
@@ -83,19 +85,28 @@ func (a *app) Run() {
 		}).Fatalf("Cannot create a PowerDNS Authoritative API client: %v", err)
 	}
 
-	_, err = consul.NewConsulClient(a.config)
+	a.consul, err = consul.NewConsulClient(a.config)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"action": log.ActionSystem,
 		}).Fatalf("Cannot create a Consul API client: %v", err)
+	}
+	// Create a service for pdns-api-internal
+	a.internalService, err = connect.NewService("pdns-api-internal", a.consul)
+	if err != nil {
+		a.logger.WithFields(logrus.Fields{
+			"action": log.ActionSystem,
+		}).Fatalf("Cannot create a Consul Connect service pdns-api-internal: %v", err)
 	}
 
-	a.consul, err = api.NewClient(api.DefaultConfig())
-	if err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"action": log.ActionSystem,
-		}).Fatalf("Cannot create a Consul API client: %v", err)
-	}
+	/*
+		a.consul, err = api.NewClient(api.DefaultConfig())
+		if err != nil {
+			a.logger.WithFields(logrus.Fields{
+				"action": log.ActionSystem,
+			}).Fatalf("Cannot create a Consul API client: %v", err)
+		}
+	*/
 
 	prometheusStats := a.initStats()
 
@@ -164,17 +175,24 @@ func (a *app) Run() {
 		if err := publicHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			a.logger.WithFields(logrus.Fields{
 				"action": log.ActionSystem,
-			}).Fatalf("error occurred while running http server: %s\n", err.Error())
+			}).Fatalf("error occurred while running public http server: %s\n", err.Error())
 		}
 	}()
 	// Internal HTTP Server
 	internalAddr := net.JoinHostPort(a.config.Internal.Address, a.config.Internal.Port)
 
 	internalHTTPServer := &http.Server{
-		Addr:    internalAddr,
-		Handler: a.internalRouter,
-		// TLSConfig: a.consul.S
+		Addr:      internalAddr,
+		Handler:   a.internalRouter,
+		TLSConfig: a.internalService.ServerTLSConfig(),
 	}
+	go func() {
+		if err := internalHTTPServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+			a.logger.WithFields(logrus.Fields{
+				"action": log.ActionSystem,
+			}).Fatalf("error occurred while running internal http server: %s\n", err.Error())
+		}
+	}()
 
 	a.logger.Infof("Version: %s; Build: %s", a.config.Version, a.config.Build)
 	a.logger.Infof("Server started and listen on %s", net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port))
