@@ -24,11 +24,13 @@ import (
 	"syscall"
 
 	"github.com/hashicorp/consul/api"
+	"github.com/hashicorp/consul/connect"
 	pdnsApi "github.com/mittwald/go-powerdns"
 	v12 "github.com/mixanemca/pdns-api/internal/app/common/handler/v1"
-	"github.com/mixanemca/pdns-api/internal/app/worker/handler/v1"
+	v1 "github.com/mixanemca/pdns-api/internal/app/worker/handler/v1"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone/storage"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/client"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
@@ -83,18 +85,18 @@ func (a *app) Run() {
 		}).Fatalf("Cannot create a PowerDNS Authoritative API client: %v", err)
 	}
 
-	_, err = consul.NewConsulClient(a.config)
+	a.consul, err = consul.NewConsulClient(a.config)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"action": log.ActionSystem,
 		}).Fatalf("Cannot create a Consul API client: %v", err)
 	}
-
-	a.consul, err = api.NewClient(api.DefaultConfig())
+	// Create a service for pdns-api-internal
+	internalService, err := connect.NewService(client.PDNSInternalServiceName, a.consul)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"action": log.ActionSystem,
-		}).Fatalf("Cannot create a Consul API client: %v", err)
+		}).Fatalf("Cannot create a Consul Connect service %s: %v", client.PDNSInternalServiceName, err)
 	}
 
 	prometheusStats := a.initStats()
@@ -146,14 +148,14 @@ func (a *app) Run() {
 	)
 
 	// HTTP internal Handlers
-	a.internalRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
+	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/cache/flush", flushHandler.FlushInternal).Methods(http.MethodPut)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", internalAddForwardZoneHandler.AddForwardZonesInternal).Methods(http.MethodPost)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", deleteForwardZonesHandler.DeleteForwardZonesInternal).Methods(http.MethodDelete)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", updateForwardZonesHandler.UpdateForwardZonesInternal).Methods(http.MethodPatch)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", deleteForwardZoneHandler.DeleteForwardZoneInternal).Methods(http.MethodDelete)
 
-	// HTTP Server
+	// Public HTTP Server
 	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
 
 	publicHTTPServer := &http.Server{
@@ -164,7 +166,22 @@ func (a *app) Run() {
 		if err := publicHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			a.logger.WithFields(logrus.Fields{
 				"action": log.ActionSystem,
-			}).Fatalf("error occurred while running http server: %s\n", err.Error())
+			}).Fatalf("error occurred while running public http server: %s\n", err.Error())
+		}
+	}()
+	// Internal HTTP Server
+	internalAddr := net.JoinHostPort(a.config.Internal.Address, a.config.Internal.Port)
+
+	internalHTTPServer := &http.Server{
+		Addr:      internalAddr,
+		Handler:   a.internalRouter,
+		TLSConfig: internalService.ServerTLSConfig(),
+	}
+	go func() {
+		if err := internalHTTPServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+			a.logger.WithFields(logrus.Fields{
+				"action": log.ActionSystem,
+			}).Fatalf("error occurred while running internal http server: %s\n", err.Error())
 		}
 	}()
 

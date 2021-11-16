@@ -76,7 +76,7 @@ func (s *client) DoInternalRequest(ireq *InternalRequest) error {
 	for _, entry := range serviceEntries {
 		// https://golang.org/doc/faq#closures_and_goroutines
 		addr := entry.Service.Address
-		port := s.config.Internal.ListenPort
+		port := s.config.Internal.Port
 		p := ireq.path
 		var buf bytes.Buffer
 		if ireq.data != nil {
@@ -93,7 +93,7 @@ func (s *client) DoInternalRequest(ireq *InternalRequest) error {
 			// Instead of this we use raw TLS Connection.
 			// todo move to config
 			conn, _ := s.internalService.Dial(ctx, &connect.StaticResolver{
-				Addr: fmt.Sprintf("%s:%d", addr, port),
+				Addr: net.JoinHostPort(addr, port),
 				CertURI: &agConnect.SpiffeIDService{
 					Namespace:  consulNamespace,
 					Datacenter: consulDC,
@@ -112,7 +112,7 @@ func (s *client) DoInternalRequest(ireq *InternalRequest) error {
 				Transport: t,
 				Timeout:   time.Duration(s.config.BackendTimeout) * time.Second,
 			}
-			url := fmt.Sprintf("https://%s:%d%s", addr, port, p)
+			url := fmt.Sprintf("https://%s:%s%s", addr, port, p)
 
 			req, err := http.NewRequest(ireq.method, url, &buf)
 			if err != nil {
