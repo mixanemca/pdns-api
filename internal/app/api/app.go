@@ -80,14 +80,7 @@ func (a *app) Run() {
 		}).Fatalf("Cannot create a PowerDNS Authoritative API client: %v", err)
 	}
 
-	_, err = consul.NewConsulClient(a.config)
-	if err != nil {
-		a.logger.WithFields(logrus.Fields{
-			"action": log.ActionSystem,
-		}).Fatalf("Cannot create a Consul API client: %v", err)
-	}
-
-	a.consul, err = api.NewClient(api.DefaultConfig())
+	a.consul, err = consul.NewConsulClient(a.config)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"action": log.ActionSystem,

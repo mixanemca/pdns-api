@@ -99,15 +99,6 @@ func (a *app) Run() {
 		}).Fatalf("Cannot create a Consul Connect service %s: %v", client.PDNSInternalServiceName, err)
 	}
 
-	/*
-		a.consul, err = api.NewClient(api.DefaultConfig())
-		if err != nil {
-			a.logger.WithFields(logrus.Fields{
-				"action": log.ActionSystem,
-			}).Fatalf("Cannot create a Consul API client: %v", err)
-		}
-	*/
-
 	prometheusStats := a.initStats()
 
 	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
