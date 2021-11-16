@@ -92,7 +92,7 @@ func (a *app) Run() {
 	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
 
 	healthHandler := commonV1.NewHealthHandler(a.config)
-	listServersHandler := apiV1.NewListServersHandler(a.config, prometheusStats, authPowerDNSClient)
+	listServersHandler := apiV1.NewListServersHandler(a.config, errorWriter, prometheusStats, a.logger, authPowerDNSClient)
 	listServerHandler := apiV1.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
 	searchDataHandler := apiV1.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
 	forwardZonesHandler := apiV1.NewForwardZonesHandler(a.config, prometheusStats, authPowerDNSClient)
