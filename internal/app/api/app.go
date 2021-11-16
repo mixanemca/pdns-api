@@ -25,7 +25,7 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/connect"
-	v1 "github.com/mixanemca/pdns-api/internal/app/api/handler/v1"
+	apiV1 "github.com/mixanemca/pdns-api/internal/app/api/handler/v1"
 	commonV1 "github.com/mixanemca/pdns-api/internal/app/common/handler/v1"
 	"github.com/mixanemca/pdns-api/internal/app/middleware"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
@@ -99,12 +99,12 @@ func (a *app) Run() {
 	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
 
 	healthHandler := commonV1.NewHealthHandler(a.config)
-	listServersHandler := v1.NewListServersHandler(a.config, prometheusStats, authPowerDNSClient)
-	listServerHandler := v1.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
-	searchDataHandler := v1.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
-	forwardZonesHandler := v1.NewForwardZonesHandler(a.config, prometheusStats, authPowerDNSClient)
-	zonesHandler := v1.NewZonesHandler(a.config, prometheusStats, authPowerDNSClient)
-	versionHandler := v1.NewVersionHandler(a.config, prometheusStats)
+	listServersHandler := apiV1.NewListServersHandler(a.config, prometheusStats, authPowerDNSClient)
+	listServerHandler := apiV1.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
+	searchDataHandler := apiV1.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
+	forwardZonesHandler := apiV1.NewForwardZonesHandler(a.config, prometheusStats, authPowerDNSClient)
+	zonesHandler := apiV1.NewZonesHandler(a.config, prometheusStats, authPowerDNSClient)
+	versionHandler := apiV1.NewVersionHandler(a.config, prometheusStats)
 
 	// HTTP public Handlers
 	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
@@ -150,7 +150,7 @@ func (a *app) Run() {
 		ldapService,
 	)
 
-	addZoneHanler := v1.NewAddZone(
+	addZoneHanler := apiV1.NewAddZone(
 		a.config,
 		ldapService,
 		errorWriter,
@@ -159,7 +159,7 @@ func (a *app) Run() {
 		authPowerDNSClient,
 	)
 
-	deleteZoneHanler := v1.NewDeleteZone(
+	deleteZoneHanler := apiV1.NewDeleteZone(
 		a.config,
 		ldapService,
 		errorWriter,
@@ -168,7 +168,7 @@ func (a *app) Run() {
 		authPowerDNSClient,
 	)
 
-	patchZoneHanler := v1.NewPatchZone(
+	patchZoneHanler := apiV1.NewPatchZone(
 		a.config,
 		errorWriter,
 		prometheusStats,
@@ -177,7 +177,7 @@ func (a *app) Run() {
 		ptrRecorder,
 		internalClient,
 	)
-	publicAddForwardZonesHandler := v1.NewAddForwardZonesHandler(
+	publicAddForwardZonesHandler := apiV1.NewAddForwardZonesHandler(
 		a.config,
 		ldapService,
 		errorWriter,
@@ -185,7 +185,7 @@ func (a *app) Run() {
 		a.logger,
 		internalClient,
 	)
-	publicDelForwardZonesHandler := v1.NewDelForwardZonesHandler(
+	publicDelForwardZonesHandler := apiV1.NewDelForwardZonesHandler(
 		a.config,
 		ldapService,
 		errorWriter,
@@ -193,7 +193,7 @@ func (a *app) Run() {
 		a.logger,
 		internalClient,
 	)
-	publicDelForwardZoneHandler := v1.NewDelForwardZoneHandler(
+	publicDelForwardZoneHandler := apiV1.NewDelForwardZoneHandler(
 		a.config,
 		ldapService,
 		errorWriter,
@@ -201,7 +201,7 @@ func (a *app) Run() {
 		a.logger,
 		internalClient,
 	)
-	publicPatchForwardZoneHandler := v1.NewPatchForwardZoneHandler(
+	publicPatchForwardZoneHandler := apiV1.NewPatchForwardZoneHandler(
 		a.config,
 		errorWriter,
 		prometheusStats,
