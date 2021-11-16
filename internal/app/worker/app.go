@@ -26,7 +26,7 @@ import (
 	"github.com/hashicorp/consul/api"
 	pdnsApi "github.com/mittwald/go-powerdns"
 	v12 "github.com/mixanemca/pdns-api/internal/app/common/handler/v1"
-	"github.com/mixanemca/pdns-api/internal/app/worker/handler/v1"
+	v1 "github.com/mixanemca/pdns-api/internal/app/worker/handler/v1"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone/storage"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
@@ -146,14 +146,14 @@ func (a *app) Run() {
 	)
 
 	// HTTP internal Handlers
-	a.internalRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
+	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/cache/flush", flushHandler.FlushInternal).Methods(http.MethodPut)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", internalAddForwardZoneHandler.AddForwardZonesInternal).Methods(http.MethodPost)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", deleteForwardZonesHandler.DeleteForwardZonesInternal).Methods(http.MethodDelete)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", updateForwardZonesHandler.UpdateForwardZonesInternal).Methods(http.MethodPatch)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", deleteForwardZoneHandler.DeleteForwardZoneInternal).Methods(http.MethodDelete)
 
-	// HTTP Server
+	// Public HTTP Server
 	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
 
 	publicHTTPServer := &http.Server{
@@ -167,6 +167,14 @@ func (a *app) Run() {
 			}).Fatalf("error occurred while running http server: %s\n", err.Error())
 		}
 	}()
+	// Internal HTTP Server
+	internalAddr := net.JoinHostPort(a.config.Internal.Address, a.config.Internal.Port)
+
+	internalHTTPServer := &http.Server{
+		Addr:    internalAddr,
+		Handler: a.internalRouter,
+		// TLSConfig: a.consul.S
+	}
 
 	a.logger.Infof("Version: %s; Build: %s", a.config.Version, a.config.Build)
 	a.logger.Infof("Server started and listen on %s", net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port))
