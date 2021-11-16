@@ -64,7 +64,7 @@ func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 }
 
 //The entry point of pdns-api
-func (a *app) Run() {
+func (a *app) Run(withHealth bool) {
 	authPowerDNSClient, err := pdnsApi.New(
 		pdnsApi.WithBaseURL(a.config.PDNS.AuthConfig.BaseURL),
 		pdnsApi.WithAPIKeyAuthentication(a.config.PDNS.AuthConfig.ApiKey),
@@ -103,8 +103,6 @@ func (a *app) Run() {
 
 	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
 	compositeFZStorage := a.createCompositeStorage()
-
-	healthHandler := v12.NewHealthHandler(a.config)
 
 	// Prometheus metrics
 	a.publicRouter.Handle("/metrics", promhttp.Handler())
@@ -148,27 +146,12 @@ func (a *app) Run() {
 	)
 
 	// HTTP internal Handlers
-	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/cache/flush", flushHandler.FlushInternal).Methods(http.MethodPut)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", internalAddForwardZoneHandler.AddForwardZonesInternal).Methods(http.MethodPost)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", deleteForwardZonesHandler.DeleteForwardZonesInternal).Methods(http.MethodDelete)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", updateForwardZonesHandler.UpdateForwardZonesInternal).Methods(http.MethodPatch)
 	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", deleteForwardZoneHandler.DeleteForwardZoneInternal).Methods(http.MethodDelete)
 
-	// Public HTTP Server
-	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
-
-	publicHTTPServer := &http.Server{
-		Addr:    publicAddr,
-		Handler: a.publicRouter,
-	}
-	go func() {
-		if err := publicHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			a.logger.WithFields(logrus.Fields{
-				"action": log.ActionSystem,
-			}).Fatalf("error occurred while running public http server: %s\n", err.Error())
-		}
-	}()
 	// Internal HTTP Server
 	internalAddr := net.JoinHostPort(a.config.Internal.Address, a.config.Internal.Port)
 
@@ -185,6 +168,10 @@ func (a *app) Run() {
 		}
 	}()
 
+	if withHealth {
+		a.startHealthServer()
+	}
+
 	a.logger.Infof("Version: %s; Build: %s", a.config.Version, a.config.Build)
 	a.logger.Infof("Server started and listen on %s", net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port))
 
@@ -194,6 +181,25 @@ func (a *app) Run() {
 	<-quit
 
 	a.logger.Info("Server stopped")
+}
+
+func (a *app) startHealthServer() {
+	healthHandler := v12.NewHealthHandler(a.config)
+	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
+	// Public HTTP Server
+	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
+
+	publicHTTPServer := &http.Server{
+		Addr:    publicAddr,
+		Handler: a.publicRouter,
+	}
+	go func() {
+		if err := publicHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			a.logger.WithFields(logrus.Fields{
+				"action": log.ActionSystem,
+			}).Fatalf("error occurred while running public http server: %s\n", err.Error())
+		}
+	}()
 }
 
 func (a *app) createCompositeStorage() storage.Storage {

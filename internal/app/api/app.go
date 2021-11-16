@@ -49,22 +49,19 @@ import (
 )
 
 type app struct {
-	config         config.Config
-	consul         *api.Client
-	logger         *logrus.Logger
-	internalRouter *mux.Router
-	publicRouter   *mux.Router
+	config       config.Config
+	consul       *api.Client
+	logger       *logrus.Logger
+	publicRouter *mux.Router
 }
 
 func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 	publicRouter := mux.NewRouter()
-	internalRouter := mux.NewRouter()
 
 	return &app{
-		config:         cfg,
-		logger:         logger,
-		internalRouter: internalRouter,
-		publicRouter:   publicRouter,
+		config:       cfg,
+		logger:       logger,
+		publicRouter: publicRouter,
 	}
 }
 
@@ -234,22 +231,6 @@ func (a *app) Run() {
 			a.logger.WithFields(logrus.Fields{
 				"action": log.ActionSystem,
 			}).Fatalf("error occurred while running http server: %s\n", err.Error())
-		}
-	}()
-
-	// Internal HTTP Server
-	internalAddr := net.JoinHostPort(a.config.Internal.Address, a.config.Internal.Port)
-
-	internalHTTPServer := &http.Server{
-		Addr:      internalAddr,
-		Handler:   a.internalRouter,
-		TLSConfig: internalService.ServerTLSConfig(),
-	}
-	go func() {
-		if err := internalHTTPServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
-			a.logger.WithFields(logrus.Fields{
-				"action": log.ActionSystem,
-			}).Fatalf("error occurred while running internal http server: %s\n", err.Error())
 		}
 	}()
 
