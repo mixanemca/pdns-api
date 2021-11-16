@@ -44,11 +44,11 @@ func main() {
 
 	if cfg.Role == config.ROLE_WORKER {
 		workerApp := worker.NewApp(*cfg, logger)
-		workerApp.Run()
+		workerApp.Run(true)
 	} else {
 		apiApp := api.NewApp(*cfg, logger)
 		workerApp := worker.NewApp(*cfg, logger)
-		workerApp.Run()
+		workerApp.Run(false)
 		apiApp.Run()
 	}
 }
