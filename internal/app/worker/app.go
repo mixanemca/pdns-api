@@ -30,6 +30,7 @@ import (
 	v1 "github.com/mixanemca/pdns-api/internal/app/worker/handler/v1"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone/storage"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/client"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
@@ -43,12 +44,11 @@ import (
 )
 
 type app struct {
-	config          config.Config
-	consul          *api.Client
-	logger          *logrus.Logger
-	internalRouter  *mux.Router
-	publicRouter    *mux.Router
-	internalService *connect.Service
+	config         config.Config
+	consul         *api.Client
+	logger         *logrus.Logger
+	internalRouter *mux.Router
+	publicRouter   *mux.Router
 }
 
 func NewApp(cfg config.Config, logger *logrus.Logger) *app {
@@ -92,11 +92,11 @@ func (a *app) Run() {
 		}).Fatalf("Cannot create a Consul API client: %v", err)
 	}
 	// Create a service for pdns-api-internal
-	a.internalService, err = connect.NewService("pdns-api-internal", a.consul)
+	internalService, err := connect.NewService(client.PDNSInternalServiceName, a.consul)
 	if err != nil {
 		a.logger.WithFields(logrus.Fields{
 			"action": log.ActionSystem,
-		}).Fatalf("Cannot create a Consul Connect service pdns-api-internal: %v", err)
+		}).Fatalf("Cannot create a Consul Connect service %s: %v", client.PDNSInternalServiceName, err)
 	}
 
 	/*
@@ -184,7 +184,7 @@ func (a *app) Run() {
 	internalHTTPServer := &http.Server{
 		Addr:      internalAddr,
 		Handler:   a.internalRouter,
-		TLSConfig: a.internalService.ServerTLSConfig(),
+		TLSConfig: internalService.ServerTLSConfig(),
 	}
 	go func() {
 		if err := internalHTTPServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {

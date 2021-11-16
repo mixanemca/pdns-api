@@ -25,7 +25,7 @@ import (
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/connect"
-	"github.com/mixanemca/pdns-api/internal/app/api/handler/v1"
+	v1 "github.com/mixanemca/pdns-api/internal/app/api/handler/v1"
 	commonV1 "github.com/mixanemca/pdns-api/internal/app/common/handler/v1"
 	"github.com/mixanemca/pdns-api/internal/app/middleware"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
@@ -229,7 +229,7 @@ func (a *app) Run() {
 		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", deleteZoneHanler.DeleteZone).Methods(http.MethodDelete)
 	}
 
-	// HTTP Server
+	// Public HTTP Server
 	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
 
 	publicHTTPServer := &http.Server{
@@ -241,6 +241,22 @@ func (a *app) Run() {
 			a.logger.WithFields(logrus.Fields{
 				"action": log.ActionSystem,
 			}).Fatalf("error occurred while running http server: %s\n", err.Error())
+		}
+	}()
+
+	// Internal HTTP Server
+	internalAddr := net.JoinHostPort(a.config.Internal.Address, a.config.Internal.Port)
+
+	internalHTTPServer := &http.Server{
+		Addr:      internalAddr,
+		Handler:   a.internalRouter,
+		TLSConfig: internalService.ServerTLSConfig(),
+	}
+	go func() {
+		if err := internalHTTPServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+			a.logger.WithFields(logrus.Fields{
+				"action": log.ActionSystem,
+			}).Fatalf("error occurred while running internal http server: %s\n", err.Error())
 		}
 	}()
 
