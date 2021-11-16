@@ -17,11 +17,13 @@ limitations under the License.
 package api
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/connect"
@@ -244,7 +246,12 @@ func (a *app) Run() {
 
 	<-quit
 
-	a.logger.Info("Server stopped")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(a.config.PublicHTTP.Timeout.Read)*time.Second)
+	defer cancel()
+	if err := publicHTTPServer.Shutdown(ctx); err != nil {
+		a.logger.Errorf("Stopping public HTTP server: %v", err)
+	}
+	a.logger.Info("Public HTTP server stopped")
 }
 
 func (a *app) createCompositeStorage() storage.Storage {
