@@ -84,7 +84,7 @@ func (s *client) DoInternalRequest(ireq *InternalRequest) error {
 		}
 
 		g.Go(func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.BackendTimeout)*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.Internal.Timeout.Read)*time.Second)
 			defer cancel()
 
 			// https://www.consul.io/docs/connect/native/go
@@ -110,7 +110,7 @@ func (s *client) DoInternalRequest(ireq *InternalRequest) error {
 
 			httpClient := &http.Client{
 				Transport: t,
-				Timeout:   time.Duration(s.config.BackendTimeout) * time.Second,
+				Timeout:   time.Duration(s.config.Internal.Timeout.Read) * time.Second,
 			}
 			url := fmt.Sprintf("https://%s:%s%s", addr, port, p)
 

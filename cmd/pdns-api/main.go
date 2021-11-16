@@ -42,13 +42,15 @@ func main() {
 
 	logger := log.NewLogger(cfg.Log.File, cfg.Log.Level)
 
+	logger.Infof("Version: %s; Build: %s", cfg.Version, cfg.Build)
+
 	if cfg.Role == config.ROLE_WORKER {
 		workerApp := worker.NewApp(*cfg, logger)
 		workerApp.Run(true)
 	} else {
-		apiApp := api.NewApp(*cfg, logger)
 		workerApp := worker.NewApp(*cfg, logger)
 		workerApp.Run(false)
+		apiApp := api.NewApp(*cfg, logger)
 		apiApp.Run()
 	}
 }

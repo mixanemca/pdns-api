@@ -26,18 +26,17 @@ const (
 )
 
 type Config struct {
-	Role           string       `mapstructure:"role"`
-	DataCenter     string       `mapstructure:"datacenter"`
-	Environment    string       `mapstructure:"environment"`
-	PublicHTTP     HTTPConfig   `mapstructure:"public-http"`
-	Log            LogConfig    `mapstructure:"log"`
-	PDNS           PDNSConfig   `mapstructure:"pdns"`
-	Consul         ConsulConfig `mapstructure:"consul"`
-	LDAP           LDAPConfig   `mapstructure:"ldap"`
-	Internal       HTTPConfig   `mapstructure:"internal-http"`
-	BackendTimeout int          `mapstructure:"backend-timeout"`
-	Version        string
-	Build          string
+	Role        string       `mapstructure:"role"`
+	DataCenter  string       `mapstructure:"datacenter"`
+	Environment string       `mapstructure:"environment"`
+	PublicHTTP  HTTPConfig   `mapstructure:"public-http"`
+	Log         LogConfig    `mapstructure:"log"`
+	PDNS        PDNSConfig   `mapstructure:"pdns"`
+	Consul      ConsulConfig `mapstructure:"consul"`
+	LDAP        LDAPConfig   `mapstructure:"ldap"`
+	Internal    HTTPConfig   `mapstructure:"internal-http"`
+	Version     string
+	Build       string
 }
 
 type HTTPConfig struct {

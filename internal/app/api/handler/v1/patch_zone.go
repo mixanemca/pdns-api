@@ -61,7 +61,7 @@ func (s *PatchZone) PatchZone(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.BackendTimeout)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.PDNS.AuthConfig.Timeout)*time.Second)
 	defer cancel()
 
 	for _, rrset := range z.ResourceRecordSets {

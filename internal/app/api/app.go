@@ -235,7 +235,7 @@ func (a *app) Run() {
 	}()
 
 	a.logger.Infof("Version: %s; Build: %s", a.config.Version, a.config.Build)
-	a.logger.Infof("Server started and listen on %s", net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port))
+	a.logger.Infof("Public HTTP server started and listen on %s", net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
