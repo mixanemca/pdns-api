@@ -53,7 +53,7 @@ func (s *DeleteZone) DeleteZone(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.BackendTimeout)*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.PDNS.AuthConfig.Timeout)*time.Second)
 	defer cancel()
 
 	err := s.auth.Zones().DeleteZone(ctx, serverID, zoneID)

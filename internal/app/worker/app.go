@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/connect"
@@ -36,6 +37,7 @@ import (
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"golang.org/x/net/context"
 
 	"github.com/gorilla/mux"
 	"github.com/mixanemca/pdns-api/internal/app/config"
@@ -54,6 +56,8 @@ type app struct {
 func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 	publicRouter := mux.NewRouter()
 	internalRouter := mux.NewRouter()
+
+	logger.Debug("Create new Worker app")
 
 	return &app{
 		config:         cfg,
@@ -172,15 +176,19 @@ func (a *app) Run(withHealth bool) {
 		a.startHealthServer()
 	}
 
-	a.logger.Infof("Version: %s; Build: %s", a.config.Version, a.config.Build)
-	a.logger.Infof("Server started and listen on %s", net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port))
+	a.logger.Infof("Internal HTTP server started and listen on %s", net.JoinHostPort(a.config.Internal.Address, a.config.Internal.Port))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
 	<-quit
 
-	a.logger.Info("Server stopped")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(a.config.Internal.Timeout.Read)*time.Second)
+	defer cancel()
+	if err := internalHTTPServer.Shutdown(ctx); err != nil {
+		a.logger.Errorf("Stopping internal HTTP server: %v", err)
+	}
+	a.logger.Info("Internal HTTP server stopped")
 }
 
 func (a *app) startHealthServer() {

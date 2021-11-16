@@ -2,6 +2,8 @@ package logger
 
 const (
 	ActionSystem            = "system"
+	ActionServersList       = "servers list"
+	ActionServerList        = "server list"
 	ActionFlushCache        = "flush cache"
 	ActionZonesList         = "zones list"
 	ActionZoneList          = "zone list"

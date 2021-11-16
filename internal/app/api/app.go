@@ -17,11 +17,13 @@ limitations under the License.
 package api
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/connect"
@@ -58,6 +60,8 @@ type app struct {
 func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 	publicRouter := mux.NewRouter()
 
+	logger.Debug("Create new API app")
+
 	return &app{
 		config:       cfg,
 		logger:       logger,
@@ -89,7 +93,7 @@ func (a *app) Run() {
 	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
 
 	healthHandler := commonV1.NewHealthHandler(a.config)
-	listServersHandler := apiV1.NewListServersHandler(a.config, prometheusStats, authPowerDNSClient)
+	listServersHandler := apiV1.NewListServersHandler(a.config, errorWriter, prometheusStats, a.logger, authPowerDNSClient)
 	listServerHandler := apiV1.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
 	searchDataHandler := apiV1.NewListServerHandler(a.config, prometheusStats, authPowerDNSClient)
 	forwardZonesHandler := apiV1.NewForwardZonesHandler(a.config, prometheusStats, authPowerDNSClient)
@@ -235,14 +239,19 @@ func (a *app) Run() {
 	}()
 
 	a.logger.Infof("Version: %s; Build: %s", a.config.Version, a.config.Build)
-	a.logger.Infof("Server started and listen on %s", net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port))
+	a.logger.Infof("Public HTTP server started and listen on %s", net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port))
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
 	<-quit
 
-	a.logger.Info("Server stopped")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(a.config.PublicHTTP.Timeout.Read)*time.Second)
+	defer cancel()
+	if err := publicHTTPServer.Shutdown(ctx); err != nil {
+		a.logger.Errorf("Stopping public HTTP server: %v", err)
+	}
+	a.logger.Info("Public HTTP server stopped")
 }
 
 func (a *app) createCompositeStorage() storage.Storage {

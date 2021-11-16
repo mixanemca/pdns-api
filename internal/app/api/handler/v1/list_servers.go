@@ -18,25 +18,31 @@ package v1
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
 	pdns "github.com/mittwald/go-powerdns"
+	pdnsApi "github.com/mittwald/go-powerdns"
 	"github.com/mixanemca/pdns-api/internal/app/config"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/errors"
+	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 )
 
 type ListServersHandler struct {
 	config         config.Config
+	errorWriter    errorWriter
 	stats          stats.PrometheusStatsCollector
-	powerDNSClient pdns.Client
+	logger         *logrus.Logger
+	powerDNSClient pdnsApi.Client
 }
 
-func NewListServersHandler(config config.Config, stats stats.PrometheusStatsCollector, powerDNSClient pdns.Client) *ListServersHandler {
-	return &ListServersHandler{config: config, stats: stats, powerDNSClient: powerDNSClient}
+func NewListServersHandler(config config.Config, errorWriter errorWriter, stats stats.PrometheusStatsCollector, logger *logrus.Logger, powerDNSClient pdns.Client) *ListServersHandler {
+	logger.Debug("create new ListServersHandler")
+	return &ListServersHandler{config: config, errorWriter: errorWriter, stats: stats, logger: logger, powerDNSClient: powerDNSClient}
 }
 
 // ListServers list all servers
@@ -49,17 +55,16 @@ func (s *ListServersHandler) ListServers(w http.ResponseWriter, r *http.Request)
 
 	servers, err := s.powerDNSClient.Servers().ListServers(ctx)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to get all servers list: %v", err), http.StatusInternalServerError)
-		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		s.errorWriter.WriteError(w, r.URL.Path, log.ActionServersList, errors.Wrap(err, "failed to get all servers list"))
 		return
 	}
 	w.Header().Set("Content-Type", "application/json;charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	err = json.NewEncoder(w).Encode(servers)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		s.stats.CountError(s.config.Environment, network.GetHostname(), r.URL.Path, http.StatusInternalServerError)
+		s.errorWriter.WriteError(w, r.URL.Path, log.ActionServersList, errors.Wrap(err, "encoding json answer"))
 		return
 	}
+	s.logger.Debug("list all servers")
 	s.stats.CountCall(s.config.Environment, network.GetHostname(), r.URL.Path, r.Method, http.StatusOK)
 }
