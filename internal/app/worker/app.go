@@ -57,6 +57,8 @@ func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 	publicRouter := mux.NewRouter()
 	internalRouter := mux.NewRouter()
 
+	logger.Debug("Create new Worker app")
+
 	return &app{
 		config:         cfg,
 		logger:         logger,

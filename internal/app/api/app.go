@@ -58,6 +58,8 @@ type app struct {
 func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 	publicRouter := mux.NewRouter()
 
+	logger.Debug("Create new API app")
+
 	return &app{
 		config:       cfg,
 		logger:       logger,
