@@ -27,6 +27,8 @@ import (
 	"github.com/mixanemca/pdns-api/internal/app/config"
 	"github.com/mixanemca/pdns-api/internal/app/worker"
 	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
+	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 )
 
@@ -51,17 +53,19 @@ func main() {
 	logger.Infof("Version: %s; Build: %s", cfg.Version, cfg.Build)
 	logger.Infof("Server start as a role %s", cfg.Role)
 
+	stats := initStats()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
 	if cfg.Role == config.ROLE_WORKER {
 		withHealth := true
 		workerApp := worker.NewApp(*cfg, logger)
-		workerApp.Run(withHealth)
+		workerApp.Run(stats, withHealth)
 
 		<-quit
 
-		ctxInternal, cancelInternal := context.WithTimeout(context.Background(), time.Duration(cfg.Internal.Timeout.Read)*time.Second)
+		ctxInternal, cancelInternal := context.WithTimeout(context.Background(), time.Duration(cfg.InternalHTTP.Timeout.Read)*time.Second)
 		defer cancelInternal()
 
 		err := workerApp.Shutdown(ctxInternal, withHealth)
@@ -71,13 +75,13 @@ func main() {
 	} else {
 		withHealth := false
 		workerApp := worker.NewApp(*cfg, logger)
-		workerApp.Run(withHealth)
+		workerApp.Run(stats, withHealth)
 		apiApp := api.NewApp(*cfg, logger)
-		apiApp.Run()
+		apiApp.Run(stats)
 
 		<-quit
 
-		ctxWorker, cancelWorker := context.WithTimeout(context.Background(), time.Duration(cfg.Internal.Timeout.Read)*time.Second)
+		ctxWorker, cancelWorker := context.WithTimeout(context.Background(), time.Duration(cfg.InternalHTTP.Timeout.Read)*time.Second)
 		defer cancelWorker()
 		err := workerApp.Shutdown(ctxWorker, withHealth)
 		if err != nil {
@@ -93,4 +97,71 @@ func main() {
 	}
 
 	logger.Info("Server successfully stopped")
+}
+
+func initStats() *stats.PrometheusStats {
+	// pdns_api_up{dc="dataspace",environment="dev",instance="pdns-dev01:443",job="pdns-api",node="pdns-dev01"}
+	// 1 if the instance is healthy, i.e. reachable, or 0 if the scrape failed
+	pdnsUp := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "pdns_api_up",
+			Help: "Whether the pdns-api server is up",
+		},
+		[]string{
+			"environment",
+			"dc",
+			"node",
+		},
+	)
+
+	// requests counter
+	// pdns_api_total{code="200",node="pdns-dev01",method="GET",uri="/api/v1/health"} 525
+	pdnsCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pdns_api_total",
+			Help: "Statistics of calls endpoints",
+		},
+		[]string{
+			"environment",
+			"node",
+			"path",
+			"method",
+			"code",
+		},
+	)
+
+	pdnsResponseTimeHistogram := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "pdns_api_response_time_s",
+			Help:    "Histogram of response times in seconds",
+			Buckets: []float64{.1, .25, .5, 1, 2.5, 5, 10},
+		},
+		[]string{
+			"environment",
+			"node",
+			"path",
+			"method",
+		},
+	)
+
+	// pdns_api_errors_total{code="400",node="pdns-dev01",path="/api/v1/servers/localhost/cache/flush"} 1
+	pdnsErrorsCounter := prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "pdns_api_errors_total",
+			Help: "Statistics of errors per instance",
+		},
+		[]string{
+			"environment",
+			"node",
+			"path",
+			"code",
+		},
+	)
+
+	prometheus.MustRegister(pdnsUp)
+	prometheus.MustRegister(pdnsCounter)
+	prometheus.MustRegister(pdnsErrorsCounter)
+	prometheus.MustRegister(pdnsResponseTimeHistogram)
+
+	return stats.NewPrometheusStats(pdnsUp, pdnsCounter, pdnsErrorsCounter, pdnsResponseTimeHistogram)
 }

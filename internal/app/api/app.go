@@ -27,8 +27,6 @@ import (
 	apiV1 "github.com/mixanemca/pdns-api/internal/app/api/handler/v1"
 	commonV1 "github.com/mixanemca/pdns-api/internal/app/common/handler/v1"
 	"github.com/mixanemca/pdns-api/internal/app/middleware"
-	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
-	"github.com/mixanemca/pdns-api/internal/domain/forwardzone/storage"
 	"github.com/mixanemca/pdns-api/internal/domain/zone"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/client"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/ldap"
@@ -38,7 +36,6 @@ import (
 	pdnsApi "github.com/mittwald/go-powerdns"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/mixanemca/pdns-api/internal/app/config"
@@ -67,7 +64,7 @@ func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 }
 
 //The entry point of pdns-api
-func (a *app) Run() {
+func (a *app) Run(prometheusStats *stats.PrometheusStats) {
 	a.logger.Debug("Run API app")
 
 	authPowerDNSClient, err := pdnsApi.New(
@@ -87,7 +84,7 @@ func (a *app) Run() {
 		}).Fatalf("Cannot create a Consul API client: %v", err)
 	}
 
-	prometheusStats := a.initStats()
+	// prometheusStats := a.initStats()
 
 	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
 
@@ -238,107 +235,18 @@ func (a *app) Run() {
 
 // Shutdown Shutdown gracefully shuts down the server without interrupting any active connections.
 func (a *app) Shutdown(ctx context.Context) error {
+	// TODO: Close Consul Connect service for internal API
+	if err := consul.ShutdownConsulClinet(a.consul); err != nil {
+		a.logger.Errorf("Stopping consul client: %v", err)
+		return err
+	}
+	a.logger.Debug("Consul client successfylly stopped")
+
 	if err := a.publicHTTPServer.Shutdown(ctx); err != nil {
 		a.logger.Errorf("Stopping public HTTP server: %v", err)
 		return err
 	}
-	a.logger.Info("Public HTTP server stopped")
+	a.logger.Info("Public HTTP server successfully stopped")
 
 	return nil
-}
-
-func (a *app) startPublicServer() {
-	publicRouter := mux.NewRouter()
-	// Prometheus metrics
-	publicRouter.Handle("/metrics", promhttp.Handler())
-
-	healthHandler := commonV1.NewHealthHandler(a.config)
-	publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
-
-	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
-	publicHTTPServer := &http.Server{
-		Addr:    publicAddr,
-		Handler: publicRouter,
-	}
-	go func() {
-		if err := publicHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			a.logger.WithFields(logrus.Fields{
-				"action": log.ActionSystem,
-			}).Fatalf("error occurred while running public http server: %s\n", err.Error())
-		}
-	}()
-	a.logger.Infof("Public HTTP server started and listen on %s", publicAddr)
-}
-
-func (a *app) createCompositeStorage() storage.Storage {
-	fsStorage := storage.NewFSStorage(forwardzone.ForwardZonesFile)
-	consulStorage := storage.NewConsuleStorage(a.consul)
-	return storage.NewCompositeStorage([]storage.Storage{fsStorage, consulStorage})
-}
-
-func (a *app) initStats() *stats.PrometheusStats {
-	// pdns_api_up{dc="dataspace",environment="dev",instance="pdns-dev01:443",job="pdns-api",node="pdns-dev01"}
-	// 1 if the instance is healthy, i.e. reachable, or 0 if the scrape failed
-	pdnsUp := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "pdns_api_up",
-			Help: "Whether the pdns-api server is up",
-		},
-		[]string{
-			"environment",
-			"dc",
-			"node",
-		},
-	)
-
-	// requests counter
-	// pdns_api_total{code="200",node="pdns-dev01",method="GET",uri="/api/v1/health"} 525
-	pdnsCounter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "pdns_api_total",
-			Help: "Statistics of calls endpoints",
-		},
-		[]string{
-			"environment",
-			"node",
-			"path",
-			"method",
-			"code",
-		},
-	)
-
-	pdnsResponseTimeHistogram := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "pdns_api_response_time_s",
-			Help:    "Histogram of response times in seconds",
-			Buckets: []float64{.1, .25, .5, 1, 2.5, 5, 10},
-		},
-		[]string{
-			"environment",
-			"node",
-			"path",
-			"method",
-		},
-	)
-
-	// pdns_api_errors_total{code="400",node="pdns-dev01",path="/api/v1/servers/localhost/cache/flush"} 1
-	pdnsErrorsCounter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "pdns_api_errors_total",
-			Help: "Statistics of errors per instance",
-		},
-		[]string{
-			"environment",
-			"node",
-			"path",
-			"code",
-		},
-	)
-
-	prometheus.MustRegister(pdnsUp)
-	prometheus.MustRegister(pdnsCounter)
-	prometheus.MustRegister(pdnsErrorsCounter)
-	prometheus.MustRegister(pdnsResponseTimeHistogram)
-
-	return stats.NewPrometheusStats(pdnsUp, pdnsCounter, pdnsErrorsCounter, pdnsResponseTimeHistogram)
 }

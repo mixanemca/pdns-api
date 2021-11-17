@@ -21,15 +21,21 @@ public-http:
   # Timeout
   timeout:
     # the maximum duration for reading the entire request, including the body
-    read: 5
+    read: 10
     # the maximum duration before timing out writes of the response
-    write: 5
+    write: 10
 # The address and port for listening internal API
 internal-http:
   # The address for listening internal API
   listen-address: '0.0.0.0'
   # The port for listening internal API
   listen-port: '8090'
+  # Timeout
+  timeout:
+    # the maximum duration for reading the entire request, including the body
+    read: 10
+    # the maximum duration before timing out writes of the response
+    write: 10
 
 pdns:
   auth:

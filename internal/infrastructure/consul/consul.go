@@ -13,7 +13,7 @@ func NewConsulClient(cfg config.Config) (*api.Client, error) {
 		return nil, err
 	}
 
-	err = registerConsuleAgents(consul)
+	err = registerConsulAgents(consul)
 	if err != nil {
 		return nil, err
 	}
@@ -21,8 +21,17 @@ func NewConsulClient(cfg config.Config) (*api.Client, error) {
 	return consul, nil
 }
 
-func registerConsuleAgents(consule *api.Client) error {
-	for _, agent := range consuleAgentsForInteralService {
+func ShutdownConsulClinet(consul *api.Client) error {
+	err := deregisterConsulAgents(consul)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func registerConsulAgents(consul *api.Client) error {
+	for _, agent := range consulAgentsForInteralService {
 		serviceRegistration := &api.AgentServiceRegistration{
 			Name:    agent.Name,
 			Address: agent.Addres,
@@ -45,7 +54,18 @@ func registerConsuleAgents(consule *api.Client) error {
 			serviceRegistration.Check.Header = agent.Header
 		}
 
-		err := consule.Agent().ServiceRegister(serviceRegistration)
+		err := consul.Agent().ServiceRegister(serviceRegistration)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func deregisterConsulAgents(consul *api.Client) error {
+	for _, agent := range consulAgentsForInteralService {
+		err := consul.Agent().ServiceDeregister(agent.Name)
 		if err != nil {
 			return err
 		}

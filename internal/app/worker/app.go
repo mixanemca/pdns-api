@@ -31,7 +31,6 @@ import (
 	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/net/context"
 
@@ -52,7 +51,7 @@ type app struct {
 func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 	logger.Debug("Create new Worker app")
 
-	internalAddr := net.JoinHostPort(cfg.Internal.Address, cfg.Internal.Port)
+	internalAddr := net.JoinHostPort(cfg.InternalHTTP.Address, cfg.InternalHTTP.Port)
 	return &app{
 		config: cfg,
 		logger: logger,
@@ -63,7 +62,7 @@ func NewApp(cfg config.Config, logger *logrus.Logger) *app {
 }
 
 //The entry point of pdns-api
-func (a *app) Run(withHealth bool) {
+func (a *app) Run(prometheusStats *stats.PrometheusStats, withHealth bool) {
 	a.logger.Debug("Run Worker app")
 
 	authPowerDNSClient, err := pdnsApi.New(
@@ -100,7 +99,7 @@ func (a *app) Run(withHealth bool) {
 		}).Fatalf("Cannot create a Consul Connect service %s: %v", client.PDNSInternalServiceName, err)
 	}
 
-	prometheusStats := a.initStats()
+	// prometheusStats := a.initStats()
 
 	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
 	compositeFZStorage := a.createCompositeStorage()
@@ -166,19 +165,26 @@ func (a *app) Run(withHealth bool) {
 		a.startPublicServer()
 	}
 
-	a.logger.Infof("Internal HTTP server started and listen on %s", net.JoinHostPort(a.config.Internal.Address, a.config.Internal.Port))
+	a.logger.Infof("Internal HTTP server started and listen on %s", a.internalHTTPServer.Addr)
 
 }
 
 func (a *app) Shutdown(ctx context.Context, withHealth bool) error {
-	if err := a.internalHTTPServer.Shutdown(ctx); err != nil && err != http.ErrServerClosed {
+	// TODO: Close Consul Connect service for internal API
+	if err := consul.ShutdownConsulClinet(a.consul); err != nil {
+		a.logger.Errorf("Stopping consul client: %v", err)
+		return err
+	}
+	a.logger.Debug("Consul client successfylly stopped")
+
+	if err := a.internalHTTPServer.Shutdown(ctx); err != nil {
 		a.logger.Errorf("Stopping internal HTTP server: %v", err)
 		return err
 	}
 	a.logger.Info("Internal HTTP server successfully stopped")
 
 	if withHealth {
-		if err := a.publicHTTPServer.Shutdown(ctx); err != nil && err != http.ErrServerClosed {
+		if err := a.publicHTTPServer.Shutdown(ctx); err != nil {
 			a.logger.Errorf("Stopping public HTTP server: %v", err)
 			return err
 		}
@@ -215,71 +221,4 @@ func (a *app) createCompositeStorage() storage.Storage {
 	fsStorage := storage.NewFSStorage(forwardzone.ForwardZonesFile)
 	consulStorage := storage.NewConsuleStorage(a.consul)
 	return storage.NewCompositeStorage([]storage.Storage{fsStorage, consulStorage})
-}
-
-func (a *app) initStats() *stats.PrometheusStats {
-	// pdns_api_up{dc="dataspace",environment="dev",instance="pdns-dev01:443",job="pdns-api",node="pdns-dev01"}
-	// 1 if the instance is healthy, i.e. reachable, or 0 if the scrape failed
-	pdnsUp := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "pdns_api_up",
-			Help: "Whether the pdns-api server is up",
-		},
-		[]string{
-			"environment",
-			"dc",
-			"node",
-		},
-	)
-
-	// requests counter
-	// pdns_api_total{code="200",node="pdns-dev01",method="GET",uri="/api/v1/health"} 525
-	pdnsCounter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "pdns_api_total",
-			Help: "Statistics of calls endpoints",
-		},
-		[]string{
-			"environment",
-			"node",
-			"path",
-			"method",
-			"code",
-		},
-	)
-
-	pdnsResponseTimeHistogram := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "pdns_api_response_time_s",
-			Help:    "Histogram of response times in seconds",
-			Buckets: []float64{.1, .25, .5, 1, 2.5, 5, 10},
-		},
-		[]string{
-			"environment",
-			"node",
-			"path",
-			"method",
-		},
-	)
-
-	// pdns_api_errors_total{code="400",node="pdns-dev01",path="/api/v1/servers/localhost/cache/flush"} 1
-	pdnsErrorsCounter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "pdns_api_errors_total",
-			Help: "Statistics of errors per instance",
-		},
-		[]string{
-			"environment",
-			"node",
-			"path",
-			"code",
-		},
-	)
-
-	prometheus.MustRegister(pdnsUp)
-	prometheus.MustRegister(pdnsCounter)
-	prometheus.MustRegister(pdnsErrorsCounter)
-	prometheus.MustRegister(pdnsResponseTimeHistogram)
-
-	return stats.NewPrometheusStats(pdnsUp, pdnsCounter, pdnsErrorsCounter, pdnsResponseTimeHistogram)
 }
