@@ -17,6 +17,12 @@ limitations under the License.
 package main
 
 import (
+	"context"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/mixanemca/pdns-api/internal/app/api"
 	"github.com/mixanemca/pdns-api/internal/app/config"
 	"github.com/mixanemca/pdns-api/internal/app/worker"
@@ -43,14 +49,48 @@ func main() {
 	logger := log.NewLogger(cfg.Log.File, cfg.Log.Level)
 
 	logger.Infof("Version: %s; Build: %s", cfg.Version, cfg.Build)
+	logger.Infof("Server start as a role %s", cfg.Role)
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
 
 	if cfg.Role == config.ROLE_WORKER {
+		withHealth := true
 		workerApp := worker.NewApp(*cfg, logger)
-		workerApp.Run(true)
+		workerApp.Run(withHealth)
+
+		<-quit
+
+		ctxInternal, cancelInternal := context.WithTimeout(context.Background(), time.Duration(cfg.Internal.Timeout.Read)*time.Second)
+		defer cancelInternal()
+
+		err := workerApp.Shutdown(ctxInternal, withHealth)
+		if err != nil {
+			logger.Error(err)
+		}
 	} else {
+		withHealth := false
 		workerApp := worker.NewApp(*cfg, logger)
-		workerApp.Run(false)
+		workerApp.Run(withHealth)
 		apiApp := api.NewApp(*cfg, logger)
 		apiApp.Run()
+
+		<-quit
+
+		ctxWorker, cancelWorker := context.WithTimeout(context.Background(), time.Duration(cfg.Internal.Timeout.Read)*time.Second)
+		defer cancelWorker()
+		err := workerApp.Shutdown(ctxWorker, withHealth)
+		if err != nil {
+			logger.Error(err)
+		}
+
+		ctxApi, cancelApi := context.WithTimeout(context.Background(), time.Duration(cfg.PublicHTTP.Timeout.Read)*time.Second)
+		defer cancelApi()
+		err = apiApp.Shutdown(ctxApi)
+		if err != nil {
+			logger.Error(err)
+		}
 	}
+
+	logger.Info("Server successfully stopped")
 }

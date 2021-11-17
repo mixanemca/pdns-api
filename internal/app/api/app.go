@@ -20,11 +20,8 @@ import (
 	"context"
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/connect"
 	apiV1 "github.com/mixanemca/pdns-api/internal/app/api/handler/v1"
@@ -44,33 +41,35 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/gorilla/mux"
 	"github.com/mixanemca/pdns-api/internal/app/config"
 	log "github.com/mixanemca/pdns-api/internal/infrastructure/logger"
 	"github.com/sirupsen/logrus"
 )
 
 type app struct {
-	config       config.Config
-	consul       *api.Client
-	logger       *logrus.Logger
-	publicRouter *mux.Router
+	config           config.Config
+	consul           *api.Client
+	logger           *logrus.Logger
+	publicHTTPServer *http.Server
 }
 
 func NewApp(cfg config.Config, logger *logrus.Logger) *app {
-	publicRouter := mux.NewRouter()
-
 	logger.Debug("Create new API app")
 
+	publicAddr := net.JoinHostPort(cfg.PublicHTTP.Address, cfg.PublicHTTP.Port)
 	return &app{
-		config:       cfg,
-		logger:       logger,
-		publicRouter: publicRouter,
+		config: cfg,
+		logger: logger,
+		publicHTTPServer: &http.Server{
+			Addr: publicAddr,
+		},
 	}
 }
 
 //The entry point of pdns-api
 func (a *app) Run() {
+	a.logger.Debug("Run API app")
+
 	authPowerDNSClient, err := pdnsApi.New(
 		pdnsApi.WithBaseURL(a.config.PDNS.AuthConfig.BaseURL),
 		pdnsApi.WithAPIKeyAuthentication(a.config.PDNS.AuthConfig.ApiKey),
@@ -100,19 +99,20 @@ func (a *app) Run() {
 	zonesHandler := apiV1.NewZonesHandler(a.config, prometheusStats, authPowerDNSClient)
 	versionHandler := apiV1.NewVersionHandler(a.config, prometheusStats)
 
+	publicRouter := mux.NewRouter()
 	// HTTP public Handlers
-	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
-	a.publicRouter.HandleFunc("/api/v1/servers", listServersHandler.ListServers).Methods(http.MethodGet)
-	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}", listServerHandler.ListServer).Methods(http.MethodGet)
-	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/search-data", searchDataHandler.SearchData).Methods(http.MethodGet)
-	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/forward-zones", forwardZonesHandler.ListForwardZones).Methods(http.MethodGet)
-	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/forward-zones/{zoneID}", forwardZonesHandler.ListForwardZone).Methods(http.MethodGet)
-	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/zones", zonesHandler.ListZones).Methods(http.MethodGet)
-	a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/zones/{zoneID}", zonesHandler.ListZone).Methods(http.MethodGet)
-	a.publicRouter.HandleFunc("/api/v1/version", versionHandler.Get).Methods(http.MethodGet)
+	publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
+	publicRouter.HandleFunc("/api/v1/servers", listServersHandler.ListServers).Methods(http.MethodGet)
+	publicRouter.HandleFunc("/api/v1/servers/{serverID}", listServerHandler.ListServer).Methods(http.MethodGet)
+	publicRouter.HandleFunc("/api/v1/servers/{serverID}/search-data", searchDataHandler.SearchData).Methods(http.MethodGet)
+	publicRouter.HandleFunc("/api/v1/servers/{serverID}/forward-zones", forwardZonesHandler.ListForwardZones).Methods(http.MethodGet)
+	publicRouter.HandleFunc("/api/v1/servers/{serverID}/forward-zones/{zoneID}", forwardZonesHandler.ListForwardZone).Methods(http.MethodGet)
+	publicRouter.HandleFunc("/api/v1/servers/{serverID}/zones", zonesHandler.ListZones).Methods(http.MethodGet)
+	publicRouter.HandleFunc("/api/v1/servers/{serverID}/zones/{zoneID}", zonesHandler.ListZone).Methods(http.MethodGet)
+	publicRouter.HandleFunc("/api/v1/version", versionHandler.Get).Methods(http.MethodGet)
 
 	// Prometheus metrics
-	a.publicRouter.Handle("/metrics", promhttp.Handler())
+	publicRouter.Handle("/metrics", promhttp.Handler())
 
 	// Create a service for pdns-api-internal
 	internalService, err := connect.NewService(client.PDNSInternalServiceName, a.consul)
@@ -203,7 +203,7 @@ func (a *app) Run() {
 	)
 
 	if viper.GetBool("ldap.enabled") {
-		authRouter := a.publicRouter.Methods(http.MethodDelete, http.MethodPatch, http.MethodPost).Subrouter()
+		authRouter := publicRouter.Methods(http.MethodDelete, http.MethodPatch, http.MethodPost).Subrouter()
 		authRouter.Use(authMiddleware.AuthMiddleware)
 		// HTTP Handlers with Authorization
 		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicAddForwardZonesHandler.AddForwardZones).Methods(http.MethodPost)
@@ -214,44 +214,60 @@ func (a *app) Run() {
 		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", patchZoneHanler.PatchZone).Methods(http.MethodPatch)
 		authRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", deleteZoneHanler.DeleteZone).Methods(http.MethodDelete)
 	} else {
-		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicAddForwardZonesHandler.AddForwardZones).Methods(http.MethodPost)
-		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicDelForwardZonesHandler.DelForwardZones).Methods(http.MethodDelete)
-		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}/{zoneID}", publicPatchForwardZoneHandler.PatchForwardZone).Methods(http.MethodPatch)
-		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}/{zoneID}", publicDelForwardZoneHandler.DelForwardZone).Methods(http.MethodDelete)
-		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}", addZoneHanler.AddZone).Methods(http.MethodPost)
-		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", patchZoneHanler.PatchZone).Methods(http.MethodPatch)
-		a.publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", deleteZoneHanler.DeleteZone).Methods(http.MethodDelete)
+		publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicAddForwardZonesHandler.AddForwardZones).Methods(http.MethodPost)
+		publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}", publicDelForwardZonesHandler.DelForwardZones).Methods(http.MethodDelete)
+		publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}/{zoneID}", publicPatchForwardZoneHandler.PatchForwardZone).Methods(http.MethodPatch)
+		publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:forward-zones}/{zoneID}", publicDelForwardZoneHandler.DelForwardZone).Methods(http.MethodDelete)
+		publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}", addZoneHanler.AddZone).Methods(http.MethodPost)
+		publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", patchZoneHanler.PatchZone).Methods(http.MethodPatch)
+		publicRouter.HandleFunc("/api/v1/servers/{serverID}/{zoneType:zones}/{zoneID}", deleteZoneHanler.DeleteZone).Methods(http.MethodDelete)
 	}
 
-	// Public HTTP Server
-	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
+	a.publicHTTPServer.Handler = publicRouter
 
-	publicHTTPServer := &http.Server{
-		Addr:    publicAddr,
-		Handler: a.publicRouter,
-	}
 	go func() {
-		if err := publicHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := a.publicHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			a.logger.WithFields(logrus.Fields{
 				"action": log.ActionSystem,
 			}).Fatalf("error occurred while running http server: %s\n", err.Error())
 		}
 	}()
 
-	a.logger.Infof("Version: %s; Build: %s", a.config.Version, a.config.Build)
 	a.logger.Infof("Public HTTP server started and listen on %s", net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port))
+}
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
-
-	<-quit
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(a.config.PublicHTTP.Timeout.Read)*time.Second)
-	defer cancel()
-	if err := publicHTTPServer.Shutdown(ctx); err != nil {
+// Shutdown Shutdown gracefully shuts down the server without interrupting any active connections.
+func (a *app) Shutdown(ctx context.Context) error {
+	if err := a.publicHTTPServer.Shutdown(ctx); err != nil {
 		a.logger.Errorf("Stopping public HTTP server: %v", err)
+		return err
 	}
 	a.logger.Info("Public HTTP server stopped")
+
+	return nil
+}
+
+func (a *app) startPublicServer() {
+	publicRouter := mux.NewRouter()
+	// Prometheus metrics
+	publicRouter.Handle("/metrics", promhttp.Handler())
+
+	healthHandler := commonV1.NewHealthHandler(a.config)
+	publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
+
+	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
+	publicHTTPServer := &http.Server{
+		Addr:    publicAddr,
+		Handler: publicRouter,
+	}
+	go func() {
+		if err := publicHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			a.logger.WithFields(logrus.Fields{
+				"action": log.ActionSystem,
+			}).Fatalf("error occurred while running public http server: %s\n", err.Error())
+		}
+	}()
+	a.logger.Infof("Public HTTP server started and listen on %s", publicAddr)
 }
 
 func (a *app) createCompositeStorage() storage.Storage {
