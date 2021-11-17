@@ -84,8 +84,6 @@ func (a *app) Run(prometheusStats *stats.PrometheusStats) {
 		}).Fatalf("Cannot create a Consul API client: %v", err)
 	}
 
-	// prometheusStats := a.initStats()
-
 	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
 
 	healthHandler := commonV1.NewHealthHandler(a.config)
