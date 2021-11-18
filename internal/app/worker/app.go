@@ -19,23 +19,18 @@ package worker
 import (
 	"net"
 	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
 	"github.com/hashicorp/consul/api"
 	"github.com/hashicorp/consul/connect"
 	pdnsApi "github.com/mittwald/go-powerdns"
-	v12 "github.com/mixanemca/pdns-api/internal/app/common/handler/v1"
-	v1 "github.com/mixanemca/pdns-api/internal/app/worker/handler/v1"
+	commonV1 "github.com/mixanemca/pdns-api/internal/app/common/handler/v1"
+	workerV1 "github.com/mixanemca/pdns-api/internal/app/worker/handler/v1"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone"
 	"github.com/mixanemca/pdns-api/internal/domain/forwardzone/storage"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/client"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/consul"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 	"github.com/mixanemca/pdns-api/internal/infrastructure/stats"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/net/context"
 
@@ -46,29 +41,30 @@ import (
 )
 
 type app struct {
-	config         config.Config
-	consul         *api.Client
-	logger         *logrus.Logger
-	internalRouter *mux.Router
-	publicRouter   *mux.Router
+	config             config.Config
+	consul             *api.Client
+	logger             *logrus.Logger
+	publicHTTPServer   *http.Server
+	internalHTTPServer *http.Server
 }
 
 func NewApp(cfg config.Config, logger *logrus.Logger) *app {
-	publicRouter := mux.NewRouter()
-	internalRouter := mux.NewRouter()
-
 	logger.Debug("Create new Worker app")
 
+	internalAddr := net.JoinHostPort(cfg.InternalHTTP.Address, cfg.InternalHTTP.Port)
 	return &app{
-		config:         cfg,
-		logger:         logger,
-		internalRouter: internalRouter,
-		publicRouter:   publicRouter,
+		config: cfg,
+		logger: logger,
+		internalHTTPServer: &http.Server{
+			Addr: internalAddr,
+		},
 	}
 }
 
 //The entry point of pdns-api
-func (a *app) Run(withHealth bool) {
+func (a *app) Run(prometheusStats *stats.PrometheusStats, withHealth bool) {
+	a.logger.Debug("Run Worker app")
+
 	authPowerDNSClient, err := pdnsApi.New(
 		pdnsApi.WithBaseURL(a.config.PDNS.AuthConfig.BaseURL),
 		pdnsApi.WithAPIKeyAuthentication(a.config.PDNS.AuthConfig.ApiKey),
@@ -103,16 +99,15 @@ func (a *app) Run(withHealth bool) {
 		}).Fatalf("Cannot create a Consul Connect service %s: %v", client.PDNSInternalServiceName, err)
 	}
 
-	prometheusStats := a.initStats()
+	// prometheusStats := a.initStats()
 
 	errorWriter := network.NewErrorWriter(a.config, a.logger, prometheusStats)
 	compositeFZStorage := a.createCompositeStorage()
 
-	// Prometheus metrics
-	a.publicRouter.Handle("/metrics", promhttp.Handler())
+	internalRouter := mux.NewRouter()
 
-	flushHandler := v1.NewFlushHandler(a.config, prometheusStats, authPowerDNSClient, recursorPowerDNSClient, a.logger)
-	internalAddForwardZoneHandler := v1.NewAddForwardZoneHandler(
+	flushHandler := workerV1.NewFlushHandler(a.config, prometheusStats, authPowerDNSClient, recursorPowerDNSClient, a.logger)
+	internalAddForwardZoneHandler := workerV1.NewAddForwardZoneHandler(
 		a.config,
 		prometheusStats,
 		authPowerDNSClient,
@@ -121,7 +116,7 @@ func (a *app) Run(withHealth bool) {
 		errorWriter,
 		compositeFZStorage,
 	)
-	deleteForwardZoneHandler := v1.NewDeleteForwardZoneHandler(
+	deleteForwardZoneHandler := workerV1.NewDeleteForwardZoneHandler(
 		a.config,
 		prometheusStats,
 		authPowerDNSClient,
@@ -130,7 +125,7 @@ func (a *app) Run(withHealth bool) {
 		errorWriter,
 		compositeFZStorage,
 	)
-	deleteForwardZonesHandler := v1.NewDeleteForwardZonesHandler(
+	deleteForwardZonesHandler := workerV1.NewDeleteForwardZonesHandler(
 		a.config,
 		prometheusStats,
 		authPowerDNSClient,
@@ -139,7 +134,7 @@ func (a *app) Run(withHealth bool) {
 		errorWriter,
 		compositeFZStorage,
 	)
-	updateForwardZonesHandler := v1.NewUpdateForwardZoneHandler(
+	updateForwardZonesHandler := workerV1.NewUpdateForwardZoneHandler(
 		a.config,
 		prometheusStats,
 		authPowerDNSClient,
@@ -150,22 +145,16 @@ func (a *app) Run(withHealth bool) {
 	)
 
 	// HTTP internal Handlers
-	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/cache/flush", flushHandler.FlushInternal).Methods(http.MethodPut)
-	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", internalAddForwardZoneHandler.AddForwardZonesInternal).Methods(http.MethodPost)
-	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", deleteForwardZonesHandler.DeleteForwardZonesInternal).Methods(http.MethodDelete)
-	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", updateForwardZonesHandler.UpdateForwardZonesInternal).Methods(http.MethodPatch)
-	a.internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", deleteForwardZoneHandler.DeleteForwardZoneInternal).Methods(http.MethodDelete)
+	internalRouter.HandleFunc("/api/v1/internal/{serverID}/cache/flush", flushHandler.FlushInternal).Methods(http.MethodPut)
+	internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", internalAddForwardZoneHandler.AddForwardZonesInternal).Methods(http.MethodPost)
+	internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones", deleteForwardZonesHandler.DeleteForwardZonesInternal).Methods(http.MethodDelete)
+	internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", updateForwardZonesHandler.UpdateForwardZonesInternal).Methods(http.MethodPatch)
+	internalRouter.HandleFunc("/api/v1/internal/{serverID}/forward-zones/{zoneID}", deleteForwardZoneHandler.DeleteForwardZoneInternal).Methods(http.MethodDelete)
 
-	// Internal HTTP Server
-	internalAddr := net.JoinHostPort(a.config.Internal.Address, a.config.Internal.Port)
-
-	internalHTTPServer := &http.Server{
-		Addr:      internalAddr,
-		Handler:   a.internalRouter,
-		TLSConfig: internalService.ServerTLSConfig(),
-	}
+	a.internalHTTPServer.Handler = internalRouter
+	a.internalHTTPServer.TLSConfig = internalService.ServerTLSConfig()
 	go func() {
-		if err := internalHTTPServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+		if err := a.internalHTTPServer.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
 			a.logger.WithFields(logrus.Fields{
 				"action": log.ActionSystem,
 			}).Fatalf("error occurred while running internal http server: %s\n", err.Error())
@@ -173,112 +162,63 @@ func (a *app) Run(withHealth bool) {
 	}()
 
 	if withHealth {
-		a.startHealthServer()
+		a.startPublicServer()
 	}
 
-	a.logger.Infof("Internal HTTP server started and listen on %s", net.JoinHostPort(a.config.Internal.Address, a.config.Internal.Port))
+	a.logger.Infof("Internal HTTP server started and listen on %s", a.internalHTTPServer.Addr)
 
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
-
-	<-quit
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(a.config.Internal.Timeout.Read)*time.Second)
-	defer cancel()
-	if err := internalHTTPServer.Shutdown(ctx); err != nil {
-		a.logger.Errorf("Stopping internal HTTP server: %v", err)
-	}
-	a.logger.Info("Internal HTTP server stopped")
 }
 
-func (a *app) startHealthServer() {
-	healthHandler := v12.NewHealthHandler(a.config)
-	a.publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
-	// Public HTTP Server
-	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
+func (a *app) Shutdown(ctx context.Context, withHealth bool) error {
+	// TODO: Close Consul Connect service for internal API
+	if err := consul.ShutdownConsulClinet(a.consul); err != nil {
+		a.logger.Errorf("Stopping consul client: %v", err)
+		return err
+	}
+	a.logger.Debug("Consul client successfylly stopped")
 
-	publicHTTPServer := &http.Server{
+	if err := a.internalHTTPServer.Shutdown(ctx); err != nil {
+		a.logger.Errorf("Stopping internal HTTP server: %v", err)
+		return err
+	}
+	a.logger.Info("Internal HTTP server successfully stopped")
+
+	if withHealth {
+		if err := a.publicHTTPServer.Shutdown(ctx); err != nil {
+			a.logger.Errorf("Stopping public HTTP server: %v", err)
+			return err
+		}
+	}
+	a.logger.Info("Public HTTP server successfully stopped")
+
+	return nil
+}
+
+func (a *app) startPublicServer() {
+	publicRouter := mux.NewRouter()
+	// Prometheus metrics
+	publicRouter.Handle("/metrics", promhttp.Handler())
+
+	healthHandler := commonV1.NewHealthHandler(a.config)
+	publicRouter.HandleFunc("/api/v1/health", healthHandler.Health).Methods(http.MethodGet)
+
+	publicAddr := net.JoinHostPort(a.config.PublicHTTP.Address, a.config.PublicHTTP.Port)
+	a.publicHTTPServer = &http.Server{
 		Addr:    publicAddr,
-		Handler: a.publicRouter,
+		Handler: publicRouter,
 	}
 	go func() {
-		if err := publicHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := a.publicHTTPServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			a.logger.WithFields(logrus.Fields{
 				"action": log.ActionSystem,
 			}).Fatalf("error occurred while running public http server: %s\n", err.Error())
 		}
 	}()
+	a.logger.Infof("Public HTTP server started and listen on %s", publicAddr)
 }
 
 func (a *app) createCompositeStorage() storage.Storage {
 	fsStorage := storage.NewFSStorage(forwardzone.ForwardZonesFile)
 	consulStorage := storage.NewConsuleStorage(a.consul)
 	return storage.NewCompositeStorage([]storage.Storage{fsStorage, consulStorage})
-}
-
-func (a *app) initStats() *stats.PrometheusStats {
-	// pdns_api_up{dc="dataspace",environment="dev",instance="pdns-dev01:443",job="pdns-api",node="pdns-dev01"}
-	// 1 if the instance is healthy, i.e. reachable, or 0 if the scrape failed
-	pdnsUp := prometheus.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "pdns_api_up",
-			Help: "Whether the pdns-api server is up",
-		},
-		[]string{
-			"environment",
-			"dc",
-			"node",
-		},
-	)
-
-	// requests counter
-	// pdns_api_total{code="200",node="pdns-dev01",method="GET",uri="/api/v1/health"} 525
-	pdnsCounter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "pdns_api_total",
-			Help: "Statistics of calls endpoints",
-		},
-		[]string{
-			"environment",
-			"node",
-			"path",
-			"method",
-			"code",
-		},
-	)
-
-	pdnsResponseTimeHistogram := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "pdns_api_response_time_s",
-			Help:    "Histogram of response times in seconds",
-			Buckets: []float64{.1, .25, .5, 1, 2.5, 5, 10},
-		},
-		[]string{
-			"environment",
-			"node",
-			"path",
-			"method",
-		},
-	)
-
-	// pdns_api_errors_total{code="400",node="pdns-dev01",path="/api/v1/servers/localhost/cache/flush"} 1
-	pdnsErrorsCounter := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "pdns_api_errors_total",
-			Help: "Statistics of errors per instance",
-		},
-		[]string{
-			"environment",
-			"node",
-			"path",
-			"code",
-		},
-	)
-
-	prometheus.MustRegister(pdnsUp)
-	prometheus.MustRegister(pdnsCounter)
-	prometheus.MustRegister(pdnsErrorsCounter)
-	prometheus.MustRegister(pdnsResponseTimeHistogram)
-
-	return stats.NewPrometheusStats(pdnsUp, pdnsCounter, pdnsErrorsCounter, pdnsResponseTimeHistogram)
 }

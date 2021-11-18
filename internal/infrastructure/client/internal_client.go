@@ -76,7 +76,7 @@ func (s *client) DoInternalRequest(ireq *InternalRequest) error {
 	for _, entry := range serviceEntries {
 		// https://golang.org/doc/faq#closures_and_goroutines
 		addr := entry.Service.Address
-		port := s.config.Internal.Port
+		port := s.config.InternalHTTP.Port
 		p := ireq.path
 		var buf bytes.Buffer
 		if ireq.data != nil {
@@ -84,7 +84,7 @@ func (s *client) DoInternalRequest(ireq *InternalRequest) error {
 		}
 
 		g.Go(func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.Internal.Timeout.Read)*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.config.InternalHTTP.Timeout.Read)*time.Second)
 			defer cancel()
 
 			// https://www.consul.io/docs/connect/native/go
@@ -110,7 +110,7 @@ func (s *client) DoInternalRequest(ireq *InternalRequest) error {
 
 			httpClient := &http.Client{
 				Transport: t,
-				Timeout:   time.Duration(s.config.Internal.Timeout.Read) * time.Second,
+				Timeout:   time.Duration(s.config.InternalHTTP.Timeout.Read) * time.Second,
 			}
 			url := fmt.Sprintf("https://%s:%s%s", addr, port, p)
 

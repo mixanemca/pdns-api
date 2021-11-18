@@ -4,7 +4,7 @@ import (
 	"github.com/mixanemca/pdns-api/internal/infrastructure/network"
 )
 
-type consuleAgent struct {
+type consulAgent struct {
 	Name     string
 	Addres   string
 	ID       string
@@ -17,7 +17,7 @@ type consuleAgent struct {
 }
 
 // Todo Move it to config
-var consuleAgentsForInteralService = []consuleAgent{
+var consulAgentsForInteralService = []consulAgent{
 	{
 		Name:     pdnsServiceName,
 		Addres:   network.GetHostname(),

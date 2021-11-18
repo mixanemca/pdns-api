@@ -26,17 +26,17 @@ const (
 )
 
 type Config struct {
-	Role        string       `mapstructure:"role"`
-	DataCenter  string       `mapstructure:"datacenter"`
-	Environment string       `mapstructure:"environment"`
-	PublicHTTP  HTTPConfig   `mapstructure:"public-http"`
-	Log         LogConfig    `mapstructure:"log"`
-	PDNS        PDNSConfig   `mapstructure:"pdns"`
-	Consul      ConsulConfig `mapstructure:"consul"`
-	LDAP        LDAPConfig   `mapstructure:"ldap"`
-	Internal    HTTPConfig   `mapstructure:"internal-http"`
-	Version     string
-	Build       string
+	Role         string       `mapstructure:"role"`
+	DataCenter   string       `mapstructure:"datacenter"`
+	Environment  string       `mapstructure:"environment"`
+	PublicHTTP   HTTPConfig   `mapstructure:"public-http"`
+	Log          LogConfig    `mapstructure:"log"`
+	PDNS         PDNSConfig   `mapstructure:"pdns"`
+	Consul       ConsulConfig `mapstructure:"consul"`
+	LDAP         LDAPConfig   `mapstructure:"ldap"`
+	InternalHTTP HTTPConfig   `mapstructure:"internal-http"`
+	Version      string
+	Build        string
 }
 
 type HTTPConfig struct {
@@ -100,6 +100,12 @@ func Init(version, build string) (*Config, error) {
 	viper.SetDefault("environment", "dev")
 	viper.SetDefault("public-http.listen-address", "127.0.0.1")
 	viper.SetDefault("public-http.listen-port", 8080)
+	viper.SetDefault("public-http.timeout.read", 10)
+	viper.SetDefault("public-http.timeout.write", 10)
+	viper.SetDefault("internal-http.listen-address", "127.0.0.1")
+	viper.SetDefault("internal-http.listen-port", 8090)
+	viper.SetDefault("internal-http.timeout.read", 10)
+	viper.SetDefault("internal-http.timeout.write", 10)
 	viper.SetDefault("pdns.auth.base-url", "http://127.0.0.1:8081")
 	viper.SetDefault("pdns.auth.timeout", 10)
 	viper.SetDefault("pdns.recursor.base-url", "http://127.0.0.1:8082")
