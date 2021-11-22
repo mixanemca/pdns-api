@@ -10,6 +10,12 @@ export CGO_ENABLED := off
 export DH_GOPKG := github.com/mixanemca/pdns-api
 export DH_GOLANG_INSTALL_ALL := 1
 
+VERSION := $(shell cat VERSION)
+BUILD := $(shell git rev-parse --short HEAD)
+
+# Use linker flags to provide version/build settings
+LDFLAGS=-ldflags "-X=main.version=$(VERSION) -X=main.build=$(BUILD)"
+
 # Package names
 CMD_PKG                     := github.com/mixanemca/pdns-api/cmd
 INTERNAL_APP_PKG            := github.com/mixanemca/pdns-api/internal/app
@@ -68,7 +74,7 @@ override_dh_auto_configure:
 	cp -ra internal/infrastructure $(GOPATH)/src/$(INTERNAL_INFRASTRUCTURE_PKG)
 
 override_dh_auto_build:
-	dh_auto_build -v
+	dh_auto_build -v -- $(LDFLAGS)
 	#go build -o bin/pdns-api cmd/pdns-api/main.go
 
 override_dh_auto_install:

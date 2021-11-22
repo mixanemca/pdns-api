@@ -1,3 +1,9 @@
+pdns-api (1.0.1) unstable; urgency=medium
+
+    * New upstream release [1.0.1]
+
+ -- Michael Bruskov <mixanemca@yandex.ru>  Tue, 9 Nov 2021 14:22:48 -0400
+
 pdns-api (1.0.0) unstable; urgency=medium
 
     * New upstream release [1.0.0]
